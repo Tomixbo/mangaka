@@ -8,38 +8,59 @@ Manga Reader - Read Manga
 <div class="flex h-full">
     <!-- Thumbnails of uploaded images -->
     <div class="w-fit bg-gray-800 border-r border-gray-700 h-full flex flex-col">
-        <div class="p-4 border-b border-gray-700">
-            <a href="/" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition shadow-lg w-full block text-center">
-                New Import
-            </a>
-        </div>
+        
         <div class="flex-grow overflow-y-auto p-4">
             {% for thumbnail in thumbnails %}
-            <div class="w-full h-64 overflow-hidden rounded-lg shadow mb-2">
+            <div class="w-full h-24 md:h-64 overflow-hidden rounded-lg shadow mb-2">
                 <img src="/media/uploaded_images/{{ thumbnail }}" alt="{{ thumbnail }}"
                      class="w-full h-full object-cover hover:opacity-75 transition ">
             </div>
             {% endfor %}
+        </div>
+        <div class="">
+            <a href="/" class="bg-gray-700 text-white py-2 px-4 rounded hover:bg-blue-700 transition shadow-lg w-full block text-center">
+                New Import
+            </a>
         </div>
     </div>
     <!-- Previewer -->
     <div class="flex-grow flex flex-col items-center  px-6">
         {% if panels %}
             <!-- Display the current panel -->
-            <div id="previewer" class="w-full h-[70vh] bg-white flex items-center justify-center overflow-hidden rounded-lg">
+            <div id="previewer" class="w-full h-[70vh] bg-white flex items-center justify-center overflow-hidden rounded-lg relative">
                 <img id="preview-image" src="" alt="Panel Preview" class="w-full max-w-full max-h-full object-contain" />
+                <!-- Play Icon Overlay -->
+                <div id="play-overlay" class="absolute top-2 left-2 bg-opacity-50 text-red-600 rounded-full p-3 hidden blink">
+                    <i class="fas fa-play text-xl"></i> <!-- Play icon -->
+                </div>
             </div>
             
+            <!-- Slider -->
+            <div class="w-full flex justify-center mt-4">
+                <input id="slider" type="range" min="0" max="{{ panels|length }}" value="0" 
+                       class="w-full appearance-none h-2 bg-gray-400 rounded-lg slider-thumb focus:outline-none focus:ring-2 focus:ring-gray-800 transition">
+            </div>
 
             <!-- Navigation buttons -->
             <div class="flex justify-center mt-4 space-x-4">
-                <button id="prev-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-500 transition shadow">
-                    Previous
+                <button id="first-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-500 transition shadow flex items-center justify-center">
+                    <i class="fas fa-angle-double-left"></i> <!-- Font Awesome icon for "First" -->
                 </button>
-                <button id="next-button" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition shadow">
-                    Next
+                <button id="prev-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-500 transition shadow flex items-center justify-center">
+                    <i class="fas fa-angle-left"></i> <!-- Font Awesome icon for "Previous" -->
+                </button>
+                <button id="play-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-green-600 transition shadow flex items-center justify-center">
+                    <i class="fas fa-play"></i> <!-- Font Awesome icon for "Play" -->
+                </button>
+                <button id="next-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-500 transition shadow flex items-center justify-center">
+                    <i class="fas fa-angle-right"></i> <!-- Font Awesome icon for "Next" -->
+                </button>
+                <button id="last-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-500 transition shadow flex items-center justify-center">
+                    <i class="fas fa-angle-double-right"></i> <!-- Font Awesome icon for "Last" -->
                 </button>
             </div>
+
+            
         {% else %}
             <p class="text-gray-500 text-center">No panels to display.</p>
         {% endif %}
@@ -50,5 +71,22 @@ Manga Reader - Read Manga
 <script id="panels-data" type="application/json">
     {{ panels|safe }}
 </script>
+<style>
+    /* Add blinking animation */
+    @keyframes blink {
+        0% {
+            opacity: 0.5;
+        }
+        50% {
+            opacity: 1;
+        }
+        100% {
+            opacity: 0.5;
+        }
+    }
 
+    .blink {
+        animation: blink 1.5s infinite;
+    }
+</style>
 {% endblock %}
