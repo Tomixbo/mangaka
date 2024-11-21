@@ -5,6 +5,47 @@ import os
 import cv2
 import base64
 import json
+from ultralytics import YOLO
+
+def detect_panels2(image_path):
+    """
+    Détection des panels parents dans une image à l'aide de YOLO.
+    :param image_path: Chemin de l'image à traiter.
+    :return: Liste des bounding boxes [(x_min, y_min, x_max, y_max)] des parents uniquement.
+    """
+    # Charger le modèle YOLO
+    model_path = os.path.join(settings.BASE_DIR, 'models', 'best.pt')  # Chemin vers votre modèle YOLO
+    model = YOLO(model_path)
+
+    # Effectuer la détection
+    results = model.predict(source=image_path, conf=0.25, save=False)
+
+    # Extraire les bounding boxes
+    panels = []
+    for result in results:
+        for box in result.boxes:
+            x_min, y_min, x_max, y_max = box.xyxy[0].tolist()  # Convertir en liste
+            panels.append((int(x_min), int(y_min), int(x_max), int(y_max)))
+
+    # Identifier les parents
+    parents = []
+    for i, box1 in enumerate(panels):
+        x1_min, y1_min, x1_max, y1_max = box1
+        is_parent = True  # Par défaut, suppose que c'est un parent
+
+        for j, box2 in enumerate(panels):
+            if i != j:
+                x2_min, y2_min, x2_max, y2_max = box2
+                # Vérifier si box1 est contenu dans box2
+                if (x1_min >= x2_min and y1_min >= y2_min and
+                    x1_max <= x2_max and y1_max <= y2_max):
+                    is_parent = False
+                    break
+
+        if is_parent:
+            parents.append(box1)
+
+    return parents
 
 
 # Détection des panels
@@ -123,7 +164,7 @@ def upload_images(request):
                 continue
 
             # Detect panels in the image
-            detected_boxes = detect_panels(image)
+            detected_boxes = detect_panels2(image)
             print(f"Number of panels detected in {image_path}: {len(detected_boxes)}")
 
             # **Order the detected boxes using sort_boxes_manga_style**
