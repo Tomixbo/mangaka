@@ -5,19 +5,35 @@ Manga Reader - Read Manga
 {% endblock %}
 
 {% block content %}
-<div id="drop-zone" class="border-4 border-dashed border-gray-500 p-6 rounded-lg bg-gray-800 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-gray-700 transition">
-    <p class="text-lg text-gray-300 mb-4">Drag and drop images here or click to upload</p>
-    <input type="file" id="file-input" class="hidden" accept="image/*" multiple>
-    <button id="upload-button" class="bg-blue-500 text-white py-2 px-6 rounded hover:bg-blue-600 transition shadow-lg">Upload</button>
-</div>
-
-<div id="previewer" class="mt-6 hidden flex-col items-center">
-    <div class="relative shadow-lg rounded-lg overflow-hidden">
-        <img id="preview-image" src="" alt="Preview" class="mx-auto max-w-full max-h-[500px] bg-gray-700">
+<div class="flex h-full">
+    <!-- Drag-and-Drop Zone / Thumbnail Viewer -->
+    <div id="image-sidebar" class="hidden w-1/4 bg-gray-800 border-r border-gray-700 h-full flex-col">
+        <div id="thumbnail-list" class="flex-grow overflow-y-auto p-4">
+            <button id="import-images-button" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition shadow-lg w-full mb-4">Import</button>
+            <div id="thumbnails" class="flex flex-col gap-4">
+                <!-- Thumbnails will be dynamically inserted here -->
+            </div>
+        </div>
     </div>
-    <div class="flex justify-center mt-4 space-x-4">
-        <button id="prev-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-500 transition shadow">Previous</button>
-        <button id="next-button" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition shadow">Next</button>
+
+    <!-- Drag-and-Drop Zone (centered initially) -->
+    <div id="drop-zone-container" class="flex flex-grow items-center justify-center">
+        <div id="drop-zone" class="border-4 border-dashed border-gray-500 p-6 rounded-lg bg-gray-800 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-gray-700 transition w-3/4 max-w-xl">
+            <p id="drop-zone-message" class="text-lg text-gray-300 mb-4">Drag and drop images here or click to upload</p>
+            <input type="file" id="file-input" class="hidden" accept="image/*" multiple>
+            <button id="upload-button" class="bg-blue-500 text-white py-2 px-6 rounded hover:bg-blue-600 transition shadow-lg">Upload</button>
+        </div>
+    </div>
+
+    <!-- Previewer -->
+    <div id="previewer" class="hidden flex-grow flex-col items-center justify-center p-6">
+        <div class="relative shadow-lg rounded-lg overflow-hidden bg-white" style="width: 800px; height: 600px;">
+            <img id="preview-image" src="" alt="Preview" class="absolute inset-0 m-auto w-auto h-auto max-w-full max-h-full object-contain">
+        </div>
+        <div class="flex justify-center mt-4 space-x-4">
+            <button id="prev-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-500 transition shadow">Previous</button>
+            <button id="next-button" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition shadow">Next</button>
+        </div>
     </div>
 </div>
 {% endblock %}
