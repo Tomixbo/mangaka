@@ -6,7 +6,8 @@ Manga Reader - Import Images
 
 {% block content %}
 <div class="flex flex-grow items-center justify-center">
-    <form action="{% url 'upload_images' %}" method="POST" enctype="multipart/form-data"
+    <!-- Form for uploading images -->
+    <form id="upload-form" action="{% url 'upload_images' %}" method="POST" enctype="multipart/form-data"
           class="border-4 border-dashed border-gray-500 p-6 rounded-lg bg-gray-800 flex flex-col items-center justify-center">
         {% csrf_token %}
         <p class="text-lg text-gray-300 mb-4">Drag and drop images here or click to upload</p>
@@ -16,4 +17,44 @@ Manga Reader - Import Images
         </button>
     </form>
 </div>
+
+<!-- Loader -->
+<div id="loader" class="fixed inset-0 bg-gray-800 bg-opacity-75 items-center justify-center hidden z-50">
+    <div class="loader"></div>
+</div>
+
+<!-- Loader Styles -->
+<style>
+    .loader {
+        border: 8px solid #f3f3f3;
+        border-top: 8px solid #3498db;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+</style>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const uploadForm = document.getElementById("upload-form");
+        const loader = document.getElementById("loader");
+
+        uploadForm.addEventListener("submit", () => {
+            // Show the loader
+            loader.classList.remove("hidden");
+            loader.classList.add("flex");
+        });
+    });
+</script>
 {% endblock %}

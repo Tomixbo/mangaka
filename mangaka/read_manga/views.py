@@ -14,7 +14,7 @@ def detect_panels2(image_path):
     :return: Liste des bounding boxes [(x_min, y_min, x_max, y_max)] des parents uniquement.
     """
     # Charger le modèle YOLO
-    model_path = os.path.join(settings.BASE_DIR, 'models', 'best.pt')  # Chemin vers votre modèle YOLO
+    model_path = os.path.join(settings.BASE_DIR, 'models', 'best_s.pt')  # Chemin vers votre modèle YOLO
     model = YOLO(model_path)
 
     # Effectuer la détection
