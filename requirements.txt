@@ -1,3 +1,4 @@
 django
 django-tailwind
 django-widget-tweaks
+opencv-python
