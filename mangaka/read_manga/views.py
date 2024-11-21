@@ -7,10 +7,12 @@ import base64
 import json
 from ultralytics import YOLO
 
-def detect_panels2(image_path):
+def detect_panels2(image_path, size_threshold=50, overlap_threshold=0.8):
     """
-    Détection des panels parents dans une image à l'aide de YOLO.
+    Détection des panels parents dans une image à l'aide de YOLO avec priorisation des parents.
     :param image_path: Chemin de l'image à traiter.
+    :param size_threshold: Taille minimale (largeur ou hauteur) pour qu'un panel soit considéré.
+    :param overlap_threshold: Seuil de recouvrement pour considérer un panel comme enfant.
     :return: Liste des bounding boxes [(x_min, y_min, x_max, y_max)] des parents uniquement.
     """
     # Charger le modèle YOLO
@@ -25,27 +27,47 @@ def detect_panels2(image_path):
     for result in results:
         for box in result.boxes:
             x_min, y_min, x_max, y_max = box.xyxy[0].tolist()  # Convertir en liste
-            panels.append((int(x_min), int(y_min), int(x_max), int(y_max)))
+            width = x_max - x_min
+            height = y_max - y_min
+
+            # Appliquer un seuil de taille minimale
+            if width >= size_threshold and height >= size_threshold:
+                panels.append((int(x_min), int(y_min), int(x_max), int(y_max)))
 
     # Identifier les parents
     parents = []
     for i, box1 in enumerate(panels):
         x1_min, y1_min, x1_max, y1_max = box1
+        area1 = (x1_max - x1_min) * (y1_max - y1_min)
         is_parent = True  # Par défaut, suppose que c'est un parent
 
         for j, box2 in enumerate(panels):
             if i != j:
                 x2_min, y2_min, x2_max, y2_max = box2
-                # Vérifier si box1 est contenu dans box2
-                if (x1_min >= x2_min and y1_min >= y2_min and
-                    x1_max <= x2_max and y1_max <= y2_max):
-                    is_parent = False
-                    break
+                area2 = (x2_max - x2_min) * (y2_max - y2_min)
+
+                # Vérifier le chevauchement
+                overlap_x = max(0, min(x1_max, x2_max) - max(x1_min, x2_min))
+                overlap_y = max(0, min(y1_max, y2_max) - max(y1_min, y2_min))
+                overlap_area = overlap_x * overlap_y
+
+                # Calculer le ratio de recouvrement relatif à box1
+                overlap_ratio1 = overlap_area / area1
+                # Calculer le ratio de recouvrement relatif à box2
+                overlap_ratio2 = overlap_area / area2
+
+                # Prioriser le parent : garder la boîte avec la plus grande aire
+                if overlap_ratio1 > overlap_threshold and overlap_ratio2 > overlap_threshold:
+                    if area1 < area2:  # Si box1 est plus petite, elle devient enfant
+                        is_parent = False
+                        break
 
         if is_parent:
             parents.append(box1)
 
     return parents
+
+
 
 
 # Détection des panels
