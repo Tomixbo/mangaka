@@ -3,3 +3,5 @@ django-tailwind
 django-widget-tweaks
 opencv-python
 ultralytics
+nltk
+language-tool-python

@@ -1,0 +1,2 @@
+python -m pip install paddlepaddle-gpu==3.0.0b2 -i https://www.paddlepaddle.org.cn/packages/stable/cu123/
+python -m pip install ./paddlepaddle-gpu/paddlepaddle_gpu-3.0.0b2-cp312-cp312-win_amd64.whl
