@@ -24,19 +24,28 @@ Manga Reader - Read Manga
         </div>
     </div>
     <!-- Previewer -->
-    <div class="flex-grow flex flex-col items-center  px-6">
+    <div class="flex-grow flex flex-col items-center px-6 min-h-0 overflow-hidden">
         {% if panels %}
-            <!-- Display the current panel -->
-            <div id="previewer" class="w-full h-[70vh] bg-white flex items-center justify-center overflow-hidden rounded-lg relative">
-                <img id="preview-image" src="" alt="Panel Preview" class="w-full max-w-full max-h-full object-contain" />
+        <div class="flex-grow flex px-6 space-x-4 w-full min-h-0">
+            <!-- Panel Previewer -->
+            <div id="previewer" class="flex-grow w-full h-full bg-white flex items-center justify-center overflow-hidden rounded-lg relative">
+                <img id="preview-image" src="" alt="Panel Preview" class="w-full h-full object-contain">
                 <!-- Play Icon Overlay -->
                 <div id="play-overlay" class="absolute top-2 left-2 bg-opacity-50 text-red-600 rounded-full p-3 hidden blink">
                     <i class="fas fa-play text-xl"></i> <!-- Play icon -->
                 </div>
             </div>
-            
+
+            <!-- Text Content Zone -->
+            <div id="text-content" class="w-[30vh] flex-grow h-full bg-gray-100 rounded-lg p-4 overflow-y-auto">
+                <p class="text-gray-800 text-justify text-lg">
+                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+                </p>
+            </div>
+        </div>
+
             <!-- Slider -->
-            <div class="w-full flex justify-center mt-4">
+            <div class="w-full flex justify-center mt-4 px-6">
                 <input id="slider" type="range" min="0" max="{{ panels|length }}" value="0" 
                        class="w-full appearance-none h-2 bg-gray-400 rounded-lg slider-thumb focus:outline-none focus:ring-2 focus:ring-gray-800 transition">
             </div>
@@ -58,7 +67,11 @@ Manga Reader - Read Manga
                 <button id="last-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-500 transition shadow flex items-center justify-center">
                     <i class="fas fa-angle-double-right"></i> <!-- Font Awesome icon for "Last" -->
                 </button>
+                <button id="toggle-text-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-blue-600 transition shadow flex items-center justify-center">
+                    <i class="fas fa-comment-slash"></i> <!-- Font Awesome icon for "Toggle Text Zone" -->
+                </button>
             </div>
+
 
             
         {% else %}
@@ -71,6 +84,23 @@ Manga Reader - Read Manga
 <script id="panels-data" type="application/json">
     {{ panels|safe }}
 </script>
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const textZone = document.getElementById("text-content");
+        const toggleButton = document.getElementById("toggle-text-button");
+        const icon = toggleButton.querySelector("i");
+
+        toggleButton.addEventListener("click", () => {
+            textZone.classList.toggle("hidden");
+            if (textZone.classList.contains("hidden")) {
+                icon.classList.replace("fa-comment-slash", "fa-comment");
+            } else {
+                icon.classList.replace("fa-comment", "fa-comment-slash");
+            }
+        });
+    });
+</script>
+
 <style>
     /* Add blinking animation */
     @keyframes blink {
@@ -88,5 +118,7 @@ Manga Reader - Read Manga
     .blink {
         animation: blink 1.5s infinite;
     }
+
+    
 </style>
 {% endblock %}
