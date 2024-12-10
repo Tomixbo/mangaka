@@ -8,10 +8,10 @@ Manga Reader - Read Manga
 {% block content %}
 <div class="flex h-full">
     <!-- Thumbnails of uploaded images -->
-    <div class="w-fit bg-gray-800 border-r border-gray-700 h-full flex flex-col">
+    <div class="w-fit bg-gray-800 border-r border-gray-700 h-full flex-col hidden lg:flex">
         <div class="flex-grow overflow-y-auto p-4">
             {% for thumbnail in thumbnails %}
-            <div class="w-full h-24 md:h-64 overflow-hidden rounded-lg shadow mb-2">
+            <div class="w-12 md:w-24 md:max-h-64  overflow-hidden rounded-lg shadow mb-2">
                 <img src="/media/uploaded_images/{{ thumbnail }}" alt="{{ thumbnail }}"
                      class="w-full h-full object-cover hover:opacity-75 transition">
             </div>
@@ -25,10 +25,15 @@ Manga Reader - Read Manga
     </div>
     
     <!-- Previewer -->
-    <div class="flex-grow flex flex-col items-center px-6 min-h-0 overflow-hidden">
+    <div class="flex-grow flex flex-col items-center  min-h-0 overflow-hidden">
+        <div class="text-right mb-4 text-sm">
+          <a href="/" class=" bg-gray-700 text-white py-2 px-4 rounded hover:bg-blue-700 transition shadow-lg w-auto block md:hidden lg:hidden  text-center">
+              New Import
+          </a>
+        </div>
         {% if panels %}
-        <div class="flex-grow flex px-6 space-x-4 w-full min-h-0">
-            <div id="previewer" class="flex-grow w-full h-full bg-white flex items-center justify-center overflow-hidden rounded-lg relative">
+        <div class="flex-grow flex flex-col md:flex-row md:px-6 space-y-2 md:space-x-4 md:space-y-0 w-full min-h-0 max-h-[65vh] ">
+            <div id="previewer" class="flex-grow w-full h-2/3 md:h-full  bg-white flex items-center justify-center overflow-hidden rounded-lg relative">
                 <img id="preview-image" src="" alt="Panel Preview" class="w-full h-full object-contain">
                 <!-- Play Overlay Icon -->
                 <div id="play-overlay" class="absolute top-2 left-2 bg-opacity-50 text-red-600 rounded-full p-3 hidden blink">
@@ -36,19 +41,22 @@ Manga Reader - Read Manga
                 </div>
             </div>
 
-            <div id="text-content" class="w-[30vh] flex-grow h-full bg-gray-100 rounded-lg p-4 overflow-y-auto">
-                <h3 class="text-lg font-bold mb-2">Textes détectés :</h3>
+            <div id="text-content" class="w-full md:w-[30vw] flex-grow h-1/3 md:h-full bg-gray-100 rounded-lg p-4 overflow-y-auto">
+                <!--<h3 class="text-lg font-bold mb-2 text-black">Textes détectés :</h3>-->
                 <ul id="text-list"></ul>
             </div>
         </div>
 
-        <div class="w-full flex justify-center mt-4 px-6">
+        <div class="w-full flex justify-center mt-4 md:px-6">
             <input id="slider" type="range" min="0" max="{{ panels|length }}" value="0" 
                    class="w-full appearance-none h-2 bg-gray-400 rounded-lg slider-thumb focus:outline-none focus:ring-2 focus:ring-gray-800 transition">
         </div>
-
-        <div class="flex justify-center mt-4 space-x-4">
-            <button id="first-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-500 transition shadow">
+        <div class=" grid-cols-6 w-full items-center mt-4 px-6 hidden md:grid">
+          <!-- Left Placeholder (empty) -->
+          <div></div>
+          <!-- Centered Navigation Buttons -->
+          <div class="flex justify-center  space-x-4 mx-auto col-span-4">
+            <button id="first-button" class="bg-gray-600 text-white py-2 px-4  rounded hover:bg-gray-500 transition shadow">
                 <i class="fas fa-angle-double-left"></i>
             </button>
             <button id="prev-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-500 transition shadow">
@@ -63,7 +71,18 @@ Manga Reader - Read Manga
             <button id="last-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-500 transition shadow">
                 <i class="fas fa-angle-double-right"></i>
             </button>
+            <button id="toggle-text-button" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-blue-600 transition shadow">
+              <i class="fas fa-comment-slash"></i> <!-- Font Awesome icon for toggle -->
+            </button>
+          </div>
+          <div class="text-right text-sm">
+              <a href="/" class=" bg-gray-700 text-white py-2 px-4 rounded hover:bg-blue-700 transition shadow-lg w-auto hidden md:block lg:hidden  text-center">
+                  New Import
+              </a>
+          </div>
+        
         </div>
+        
         {% else %}
         <p class="text-gray-500 text-center">No panels to display.</p>
         {% endif %}
@@ -131,7 +150,7 @@ Manga Reader - Read Manga
               textList.innerHTML = texts[index]
                 .map(
                   (text) =>
-                    `<li class="font-serif italic text-gray-800 text-lg">${text}</li></br>`
+                    `<li class="font-serif italic text-gray-800 text-md lg:text-lg ">${text}</li></br>`
                 )
                 .join("");
             } else {
@@ -210,6 +229,21 @@ Manga Reader - Read Manga
       
         // Initial call to display the first panel
         updateContent(currentIndex);
+        // Références pour le bouton de bascule de la zone de texte
+        const toggleTextButton = document.getElementById("toggle-text-button");
+        const textContent = document.getElementById("text-content");
+
+        if (toggleTextButton) {
+            toggleTextButton.addEventListener("click", () => {
+                textContent.classList.toggle("hidden");
+                const icon = toggleTextButton.querySelector("i");
+                if (textContent.classList.contains("hidden")) {
+                    icon.classList.replace("fa-comment-slash", "fa-comment");
+                } else {
+                    icon.classList.replace("fa-comment", "fa-comment-slash");
+                }
+            });
+        }
       });
       
 </script>
