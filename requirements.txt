@@ -5,4 +5,9 @@ opencv-python
 ultralytics
 nltk
 language-tool-python
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch 
+torchvision 
+torchaudio 
 paddleocr
+coqui-tts

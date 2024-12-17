@@ -4,9 +4,17 @@ from paddleocr import PaddleOCR
 import cv2
 import os
 from django.conf import settings
+from TTS.api import TTS
+import torch
+import re
+
+# Initialize TTS Model
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print(device)
+tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(device)
 
 # Télécharger les modèles nécessaires pour nltk
-nltk.download('punkt')
+#nltk.download('punkt')
 
 # Initialisation de PaddleOCR et LanguageTool
 ocr = PaddleOCR(
@@ -97,6 +105,9 @@ def preprocess_image(image):
 
 
 def format_text_to_sentence_case(text):
+    # Supprimer les séries de points '..', '...', '....', '.....'
+    text = re.sub(r'\.{2,}', '', text)
+    
     sentences = nltk.sent_tokenize(text, language='french')
     formatted_sentences = []
     for sentence in sentences:

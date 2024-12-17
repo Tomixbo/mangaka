@@ -91,162 +91,204 @@ Manga Reader - Read Manga
 
 <script id="panels-data" type="application/json">{{ panels|safe }}</script>
 <script id="texts-data" type="application/json">{{ texts|safe }}</script>
+<script id="audios-data" type="application/json">{{ audios|safe }}</script>
+
 <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        // Retrieve the panels and texts data from the script tags
-        const panelsDataElement = document.getElementById("panels-data");
-        const textsDataElement = document.getElementById("texts-data");
-      
-        let panels = [];
-        let texts = [];
-        let currentIndex = 0;
-        let playInterval = null;
-      
-        if (panelsDataElement) {
+  document.addEventListener("DOMContentLoaded", () => {
+      // Retrieve the panels, texts, and audios data from the script tags
+      const panelsDataElement = document.getElementById("panels-data");
+      const textsDataElement = document.getElementById("texts-data");
+      const audiosDataElement = document.getElementById("audios-data");
+
+      let panels = [];
+      let texts = [];
+      let audios = [];
+      let currentIndex = 0;
+      let playInterval = null;
+      let audioElement = new Audio();
+
+      // Parse panels data
+      if (panelsDataElement) {
           try {
-            panels = JSON.parse(panelsDataElement.textContent);
-            console.log("Panels data loaded:", panels);
+              panels = JSON.parse(panelsDataElement.textContent);
+              console.log("Panels data loaded:", panels);
           } catch (error) {
-            console.error("Error parsing panels data:", error);
+              console.error("Error parsing panels data:", error);
           }
-        } else {
+      } else {
           console.error("Panels data element not found.");
-        }
-      
-        if (textsDataElement) {
+      }
+
+      // Parse texts data
+      if (textsDataElement) {
           try {
-            texts = JSON.parse(textsDataElement.textContent);
-            console.log("Texts data loaded:", texts);
+              texts = JSON.parse(textsDataElement.textContent);
+              console.log("Texts data loaded:", texts);
           } catch (error) {
-            console.error("Error parsing texts data:", error);
+              console.error("Error parsing texts data:", error);
           }
-        } else {
+      } else {
           console.error("Texts data element not found.");
-        }
-      
-        // Get references to the DOM elements
-        const previewImage = document.getElementById("preview-image");
-        const textList = document.getElementById("text-list");
-        const prevButton = document.getElementById("prev-button");
-        const nextButton = document.getElementById("next-button");
-        const firstButton = document.getElementById("first-button");
-        const lastButton = document.getElementById("last-button");
-        const playButton = document.getElementById("play-button");
-        const slider = document.getElementById("slider");
-        const playOverlay = document.getElementById("play-overlay");
-      
-        // Update slider range and value
-        slider.max = panels.length - 1;
-      
-        // Function to update the preview image and associated text
-        function updateContent(index) {
+      }
+
+      // Parse audios data
+      if (audiosDataElement) {
+          try {
+              audios = JSON.parse(audiosDataElement.textContent);
+              console.log("Audios data loaded:", audios);
+          } catch (error) {
+              console.error("Error parsing audios data:", error);
+          }
+      } else {
+          console.error("Audios data element not found.");
+      }
+
+      // Get references to the DOM elements
+      const previewImage = document.getElementById("preview-image");
+      const textList = document.getElementById("text-list");
+      const prevButton = document.getElementById("prev-button");
+      const nextButton = document.getElementById("next-button");
+      const firstButton = document.getElementById("first-button");
+      const lastButton = document.getElementById("last-button");
+      const playButton = document.getElementById("play-button");
+      const slider = document.getElementById("slider");
+      const playOverlay = document.getElementById("play-overlay");
+      const toggleTextButton = document.getElementById("toggle-text-button");
+      const textContent = document.getElementById("text-content");
+
+      // Update slider range and value
+      slider.max = panels.length - 1;
+
+      // Function to update the preview image and associated text
+      function updateContent(index) {
           if (panels.length > 0 && previewImage) {
-            const panelBase64 = panels[index];
-            previewImage.src = `data:image/jpeg;base64,${panelBase64}`;
-            slider.value = index;
-      
-            // Update the text list
-            if (texts[index]) {
-              textList.innerHTML = texts[index]
-                .map(
-                  (text) =>
-                    `<li class="font-serif italic text-gray-800 text-md lg:text-lg ">${text}</li></br>`
-                )
-                .join("");
-            } else {
-              textList.innerHTML = `<li class="text-gray-500 italic"></li>`;
-            }
-          } else {
-            console.warn("No panels to display or preview image element not found.");
-          }
-        }
-      
-        // Function to toggle play/pause
-        function togglePlayPause() {
-          if (playInterval) {
-            clearInterval(playInterval);
-            playInterval = null;
-            playButton.innerHTML = '<i class="fas fa-play"></i>'; // Change icon to play
-            playButton.classList.replace("bg-green-600", "bg-gray-600");
-            playOverlay.classList.add("hidden"); // Hide play overlay
-          } else {
-            playInterval = setInterval(() => {
-              if (currentIndex < panels.length - 1) {
-                currentIndex++;
-                updateContent(currentIndex);
+              const panelBase64 = panels[index];
+              previewImage.src = `data:image/jpeg;base64,${panelBase64}`;
+              slider.value = index;
+
+              // Update the text list
+              if (texts[index]) {
+                  textList.innerHTML = texts[index]
+                      .map(
+                          (text) =>
+                              `<li class="font-serif italic text-gray-800 text-md lg:text-lg">${text}</li></br>`
+                      )
+                      .join("");
               } else {
-                togglePlayPause(); // Automatically pause at the last panel
+                  textList.innerHTML = `<li class="text-gray-500 italic"></li>`;
               }
-            }, 3000); // Change every 3 seconds
-            playButton.innerHTML = '<i class="fas fa-pause"></i>'; // Change icon to pause
-            playButton.classList.replace("bg-gray-600", "bg-green-600");
-            playOverlay.classList.remove("hidden"); // Show play overlay
+          } else {
+              console.warn("No panels to display or preview image element not found.");
           }
-        }
-      
-        // Event listeners for navigation buttons
-        if (firstButton) {
+      }
+
+      // Function to play audio for the current panel
+      function playPanelAudio(index) {
+          if (audios[index]) {
+              audioElement.src = `/media/audio_files/${audios[index]}`;
+              audioElement.play();
+              audioElement.onended = () => {
+                  if (currentIndex < panels.length - 1) {
+                      currentIndex++;
+                      updateContent(currentIndex);
+                      playPanelAudio(currentIndex);
+                  } else {
+                      togglePlayPause(); // Automatically stop playback at the last panel
+                  }
+              };
+          } else {
+              setTimeout(() => {
+                  if (currentIndex < panels.length - 1) {
+                      currentIndex++;
+                      updateContent(currentIndex);
+                      playPanelAudio(currentIndex);
+                  } else {
+                      togglePlayPause(); // Stop playback if at the last panel
+                  }
+              }, 2000); // Default delay for panels without audio
+          }
+      }
+
+      // Function to toggle play/pause
+      function togglePlayPause() {
+          if (playInterval || !audioElement.paused) {
+              clearInterval(playInterval);
+              playInterval = null;
+              audioElement.pause();
+              playButton.innerHTML = '<i class="fas fa-play"></i>'; // Change icon to play
+              playButton.classList.replace("bg-green-600", "bg-gray-600");
+              playOverlay.classList.add("hidden"); // Hide play overlay
+          } else {
+              currentIndex = 0; // Start from the first panel
+              updateContent(currentIndex);
+              playPanelAudio(currentIndex);
+              playButton.innerHTML = '<i class="fas fa-pause"></i>'; // Change icon to pause
+              playButton.classList.replace("bg-gray-600", "bg-green-600");
+              playOverlay.classList.remove("hidden"); // Show play overlay
+          }
+      }
+
+      // Event listeners for navigation buttons
+      if (firstButton) {
           firstButton.addEventListener("click", () => {
-            currentIndex = 0;
-            updateContent(currentIndex);
+              currentIndex = 0;
+              updateContent(currentIndex);
           });
-        }
-      
-        if (prevButton) {
+      }
+
+      if (prevButton) {
           prevButton.addEventListener("click", () => {
-            if (currentIndex > 0) {
-              currentIndex--;
-              updateContent(currentIndex);
-            }
+              if (currentIndex > 0) {
+                  currentIndex--;
+                  updateContent(currentIndex);
+              }
           });
-        }
-      
-        if (nextButton) {
+      }
+
+      if (nextButton) {
           nextButton.addEventListener("click", () => {
-            if (currentIndex < panels.length - 1) {
-              currentIndex++;
-              updateContent(currentIndex);
-            }
+              if (currentIndex < panels.length - 1) {
+                  currentIndex++;
+                  updateContent(currentIndex);
+              }
           });
-        }
-      
-        if (lastButton) {
+      }
+
+      if (lastButton) {
           lastButton.addEventListener("click", () => {
-            currentIndex = panels.length - 1;
-            updateContent(currentIndex);
+              currentIndex = panels.length - 1;
+              updateContent(currentIndex);
           });
-        }
-      
-        if (playButton) {
+      }
+
+      if (playButton) {
           playButton.addEventListener("click", togglePlayPause);
-        }
-      
-        // Event listener for the slider
-        slider.addEventListener("input", (e) => {
+      }
+
+      // Event listener for the slider
+      slider.addEventListener("input", (e) => {
           currentIndex = parseInt(e.target.value, 10);
           updateContent(currentIndex);
-        });
-      
-        // Initial call to display the first panel
-        updateContent(currentIndex);
-        // Références pour le bouton de bascule de la zone de texte
-        const toggleTextButton = document.getElementById("toggle-text-button");
-        const textContent = document.getElementById("text-content");
-
-        if (toggleTextButton) {
-            toggleTextButton.addEventListener("click", () => {
-                textContent.classList.toggle("hidden");
-                const icon = toggleTextButton.querySelector("i");
-                if (textContent.classList.contains("hidden")) {
-                    icon.classList.replace("fa-comment-slash", "fa-comment");
-                } else {
-                    icon.classList.replace("fa-comment", "fa-comment-slash");
-                }
-            });
-        }
       });
-      
+
+      // Event listener for toggling text display
+      if (toggleTextButton) {
+          toggleTextButton.addEventListener("click", () => {
+              textContent.classList.toggle("hidden");
+              const icon = toggleTextButton.querySelector("i");
+              if (textContent.classList.contains("hidden")) {
+                  icon.classList.replace("fa-comment-slash", "fa-comment");
+              } else {
+                  icon.classList.replace("fa-comment", "fa-comment-slash");
+              }
+          });
+      }
+
+      // Initial call to display the first panel
+      updateContent(currentIndex);
+  });
 </script>
+
 <style>
     /* Add blinking animation */
     @keyframes blink {
