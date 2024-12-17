@@ -7,7 +7,7 @@ import base64
 import json
 from ultralytics import YOLO
 from .utils import *
-
+from django.apps import apps 
 
 def detect_panels(image_path, model, size_threshold=50, overlap_threshold=0.8):
     """
@@ -112,6 +112,9 @@ def sort_boxes_manga_style(boxes, vertical_threshold=5):
 # Vue pour uploader et traiter les images
 def process_uploaded_images(request):
     if request.method == 'POST':
+        # Obtenir TTS à partir de la configuration de l'application
+        tts = apps.get_app_config('read_manga').tts
+
         fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'uploaded_images'))
         upload_dir = os.path.join(settings.MEDIA_ROOT, 'uploaded_images')
         audio_output_dir = os.path.join(settings.MEDIA_ROOT, 'audio_files')
@@ -192,8 +195,10 @@ def process_uploaded_images(request):
                 audio_file_path = os.path.join(audio_output_dir, audio_filename)
                 if processed_texts:
                     print('Start text to speech...')
+                    modified_texts = " ".join(processed_texts).replace(".", ",")
+                    print(modified_texts)
                     tts.tts_to_file(
-                        text=" ".join(processed_texts),
+                        text=modified_texts,
                         speaker="Damien Black",
                         language="fr",
                         file_path=audio_file_path
@@ -222,3 +227,116 @@ def process_uploaded_images(request):
     return render(request, 'read_manga/index.html')
 
 
+    if request.method == 'POST':
+        fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'uploaded_images'))
+        upload_dir = os.path.join(settings.MEDIA_ROOT, 'uploaded_images')
+
+        # Clear uploaded_images folder
+        for filename in os.listdir(upload_dir):
+            file_path = os.path.join(upload_dir, filename)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+
+        uploaded_files = request.FILES.getlist('images')
+        image_paths = [fs.save(uploaded_file.name, uploaded_file) for uploaded_file in uploaded_files]
+        panels_data, text_data, audio_data = [], [], []
+
+        # Charger le modèle YOLO une seule fois
+        model_path = os.path.join(settings.BASE_DIR, 'models', 'panel_text_detection', 'panel_text_detection.pt')
+        model = YOLO(model_path)
+
+        # Initialiser TTS une seule fois
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(device)
+        tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(device)
+
+        for image_path in sorted(image_paths):
+            full_image_path = os.path.join(fs.location, image_path)
+            image = cv2.imread(full_image_path)
+            if image is None:
+                print(f"Image {image_path} could not be loaded.")
+                continue
+
+            # Détection des panneaux et textes
+            detected_boxes = model.predict(source=full_image_path, conf=0.25, save=False)
+            panels, texts = [], []
+            for result in detected_boxes:
+                for box in result.boxes:
+                    x_min, y_min, x_max, y_max = map(int, box.xyxy[0].tolist())
+                    class_id = int(box.cls[0])
+                    if class_id == 0:  # Panneau
+                        panels.append((x_min, y_min, x_max, y_max))
+                    elif class_id == 1:  # Texte
+                        texts.append((x_min, y_min, x_max, y_max))
+
+            # Trier les panneaux selon le style manga
+            sorted_panels = sort_boxes_manga_style(panels, vertical_threshold=100)
+
+            # Associer les textes aux panneaux détectés
+            panel_texts = assign_text_to_panels(sorted_panels, texts)
+
+            # Traiter chaque panneau et ses textes associés
+            for panel_id, texts_in_panel in panel_texts.items():
+                x_min_p, y_min_p, x_max_p, y_max_p = sorted_panels[panel_id]
+                panel_image = image[y_min_p:y_max_p, x_min_p:x_max_p]
+                _, buffer = cv2.imencode('.jpg', panel_image)
+                panels_data.append(base64.b64encode(buffer.tobytes()).decode('utf-8'))
+
+                # Reconnaissance OCR et correction des textes dans le panneau
+                sorted_texts = sort_texts_in_panel(texts_in_panel)
+                processed_texts = []
+                for text_box in sorted_texts:
+                    x_min_t, y_min_t, x_max_t, y_max_t = text_box
+                    cropped_text = image[y_min_t:y_max_t, x_min_t:x_max_t]
+                    preprocessed_text = preprocess_image(cropped_text)
+                    if preprocessed_text is not None:
+                        ocr_result = ocr.ocr(preprocessed_text, cls=False)
+                        if ocr_result and isinstance(ocr_result[0], list):
+                            recognized_text = " ".join([line[1][0] for line in ocr_result[0]])
+                            corrected_text = format_text_to_sentence_case(recognized_text)
+                            processed_texts.append(corrected_text)
+
+                text_data.append(processed_texts)
+
+                # **Générer l'audio pour le texte directement en mémoire**
+                if processed_texts:
+                    print(f"Generating audio for panel {panel_id}...")
+                    text_to_speak = " ".join(processed_texts)
+
+                    # Générer l'audio - cette fois directement en mémoire
+                    audio_data_array = tts.tts(text=text_to_speak, speaker="Damien Black", language="fr")
+
+                    # Assurez-vous que c'est un tableau numpy
+                    if not isinstance(audio_data_array, np.ndarray):
+                        audio_data_array = np.array(audio_data_array, dtype=np.float32)
+
+                    # Normaliser les données audio pour 16 bits PCM
+                    audio_normalized = np.int16(audio_data_array * 32767)
+
+                    # Convertir en flux binaire avec BytesIO
+                    audio_buffer = BytesIO()
+                    audio_buffer.write(audio_normalized.tobytes())
+
+                    # Encoder en base64
+                    audio_base64 = base64.b64encode(audio_buffer.getvalue()).decode('utf-8')
+
+                    # Nettoyage
+                    audio_buffer.close()
+
+                    audio_data.append(audio_base64)
+                else:
+                    audio_data.append(None)
+
+        # Convertir les données pour le frontend
+        panels_json = json.dumps(panels_data)
+        texts_json = json.dumps(text_data)
+        audio_json = json.dumps(audio_data)
+
+        return render(request, 'read_manga/reader.html', {
+            'panels': panels_json,
+            'texts': texts_json,
+            'audios': audio_json,
+            'thumbnails': [os.path.basename(path) for path in image_paths],
+        })
+
+    return render(request, 'read_manga/index.html')

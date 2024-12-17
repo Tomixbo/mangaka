@@ -4,14 +4,10 @@ from paddleocr import PaddleOCR
 import cv2
 import os
 from django.conf import settings
-from TTS.api import TTS
 import torch
 import re
 
-# Initialize TTS Model
-device = "cuda" if torch.cuda.is_available() else "cpu"
-print(device)
-tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(device)
+
 
 # Télécharger les modèles nécessaires pour nltk
 #nltk.download('punkt')
@@ -105,9 +101,15 @@ def preprocess_image(image):
 
 
 def format_text_to_sentence_case(text):
-    # Supprimer les séries de points '..', '...', '....', '.....'
-    text = re.sub(r'\.{2,}', '', text)
+    # Remplacer tous les points (1 ou plus) par un espace
+    text = re.sub(r'\.{2,}', ' ', text)
     
+    # Supprimer les retours à la ligne (\n), les tabulations (\t), les backspaces (\b), et autres échappements invisibles
+    text = re.sub(r'[\n\t\b\r\f\v]', ' ', text)
+    
+    # Remplacer plusieurs espaces consécutifs par un seul espace
+    text = re.sub(r'\s+', ' ', text).strip()
+
     sentences = nltk.sent_tokenize(text, language='french')
     formatted_sentences = []
     for sentence in sentences:
