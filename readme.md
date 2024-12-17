@@ -28,3 +28,6 @@ cd mangaka
 python manage.py runserver
 
 ```
+
+# Demo
+[![Video Demo](https://img.youtube.com/vi/5Z5qK5bgWp8/0.jpg)](https://www.youtube.com/watch?v=5Z5qK5bgWp8)

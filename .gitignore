@@ -162,3 +162,5 @@ cython_debug/
 #.idea/
 
 /mangaka/media
+/paddlepaddle-gpu
+/mangaka/models
