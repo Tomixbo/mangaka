@@ -182,100 +182,119 @@ Manga Reader - Read Manga
             }
         }
   
-        // Function to play audio for the current panel
-        function playPanelAudio(index) {
-            if (audios[index]) {
-                audioElement.src = `/media/audio_files/${audios[index]}`;
-                audioElement.play();
-                audioElement.onended = () => {
-                    if (currentIndex < panels.length - 1) {
-                        currentIndex++;
-                        updateContent(currentIndex);
-                        playPanelAudio(currentIndex);
-                    } else {
-                        togglePlayPause(); // Automatically stop playback at the last panel
-                    }
-                };
-            } else {
-                setTimeout(() => {
-                    if (currentIndex < panels.length - 1) {
-                        currentIndex++;
-                        updateContent(currentIndex);
-                        playPanelAudio(currentIndex);
-                    } else {
-                        togglePlayPause(); // Stop playback if at the last panel
-                    }
-                }, 2000); // Default delay for panels without audio
-            }
-        }
   
-        // Function to toggle play/pause
+        // Création de l'élément audio pour la musique de fond
+        const backgroundMusic = new Audio('/media/background_music/background_music.mp3');
+        backgroundMusic.loop = true;
+        backgroundMusic.volume = 0.2; // Volume de fond sonore
+
+        let isPlaying = false; // État global pour contrôler la lecture
+
+        // Fonction pour activer/désactiver la lecture
         function togglePlayPause() {
-            if (playInterval || !audioElement.paused) {
-                // Arrêter la lecture
-                stopPlayback();
+            const navigationButtons = [firstButton, prevButton, nextButton, lastButton, slider];
+
+            if (isPlaying) {
+                // Pause : arrêter toutes les lectures
+                audioElement.pause();
+                backgroundMusic.pause();
+                isPlaying = false;
+
+                // Mettre à jour le bouton et réactiver la navigation
+                playButton.innerHTML = '<i class="fas fa-play"></i>';
+                playButton.classList.replace("bg-green-600", "bg-gray-600");
+                playOverlay.classList.add("hidden");
+                navigationButtons.forEach(button => button.disabled = false);
+
+                console.log("Playback paused.");
             } else {
-                // Démarrer ou reprendre la lecture à partir de l'index courant
-                if (currentIndex >= panels.length) {
-                    currentIndex = 0; // Si on dépasse, revenir au début
+                // Play : démarrer ou reprendre la lecture
+                playPanelAudio(currentIndex);
+
+                // Démarrer la musique de fond si elle est en pause
+                if (backgroundMusic.paused || backgroundMusic.currentTime === 0) {
+                    backgroundMusic.play();
                 }
-                updateContent(currentIndex); // Mettre à jour le contenu actuel
-                playPanelAudio(currentIndex); // Jouer l'audio correspondant
-                playButton.innerHTML = '<i class="fas fa-pause"></i>'; // Icône Pause
+
+                isPlaying = true;
+
+                // Désactiver les boutons de navigation
+                navigationButtons.forEach(button => button.disabled = true);
+
+                // Mettre à jour le bouton
+                playButton.innerHTML = '<i class="fas fa-pause"></i>';
                 playButton.classList.replace("bg-gray-600", "bg-green-600");
                 playOverlay.classList.remove("hidden");
+
+                console.log("Playback started.");
             }
         }
-        
+
         // Fonction pour arrêter complètement la lecture
         function stopPlayback() {
-            clearInterval(playInterval);
-            playInterval = null;
+            isPlaying = false;
+
+            // Arrêter toutes les lectures
             audioElement.pause();
-            audioElement.currentTime = 0; // Réinitialiser l'audio au début
-            playButton.innerHTML = '<i class="fas fa-play"></i>'; // Icône Play
+            backgroundMusic.pause();
+            audioElement.currentTime = 0;
+            backgroundMusic.currentTime = 0;
+
+            playButton.innerHTML = '<i class="fas fa-play"></i>';
             playButton.classList.replace("bg-green-600", "bg-gray-600");
             playOverlay.classList.add("hidden");
+
+            // Réactiver les boutons de navigation
+            [firstButton, prevButton, nextButton, lastButton, slider].forEach(button => button.disabled = false);
+
+            console.log("Playback stopped.");
         }
-        
-        // Fonction pour lire l'audio pour le panel actuel
+
+        // Fonction pour jouer l'audio d'un panneau
         function playPanelAudio(index) {
             if (audios[index]) {
                 audioElement.src = `/media/audio_files/${audios[index]}`;
                 audioElement.play();
+
                 audioElement.onended = () => {
-                    if (currentIndex < panels.length - 1) {
+                    if (isPlaying && currentIndex < panels.length - 1) {
                         currentIndex++;
                         updateContent(currentIndex);
-                        playPanelAudio(currentIndex); // Lire l'audio du panel suivant
+                        playPanelAudio(currentIndex);
                     } else {
-                        // Fin de lecture, arrêter proprement
                         stopPlayback();
                     }
                 };
+
+                audioElement.onerror = () => {
+                    console.error("Error playing audio, skipping to next panel.");
+                    currentIndex++;
+                    playPanelAudio(currentIndex);
+                };
             } else {
-                // Ajouter un délai pour les panels sans audio
+                // Si pas d'audio, attendre 2 secondes puis passer au suivant
                 setTimeout(() => {
-                    if (currentIndex < panels.length - 1) {
+                    if (isPlaying && currentIndex < panels.length - 1) {
                         currentIndex++;
                         updateContent(currentIndex);
                         playPanelAudio(currentIndex);
                     } else {
-                        // Fin de lecture, arrêter proprement
                         stopPlayback();
                     }
                 }, 2000);
             }
         }
-        
-  
-        // Event listeners for navigation buttons
+
+        // Écouter les événements pour les boutons de navigation
         if (firstButton) {
             firstButton.addEventListener("click", () => {
+                stopPlayback();
                 currentIndex = 0;
                 updateContent(currentIndex);
+                backgroundMusic.currentTime = 0; // Réinitialiser la musique de fond
+                console.log("Navigated to first panel.");
             });
-        }
+        }      
   
         if (prevButton) {
             prevButton.addEventListener("click", () => {
@@ -310,6 +329,11 @@ Manga Reader - Read Manga
         slider.addEventListener("input", (e) => {
             currentIndex = parseInt(e.target.value, 10);
             updateContent(currentIndex);
+
+            // Réinitialiser la musique de fond si le slider est remis à 0
+            if (currentIndex === 0) {
+                backgroundMusic.currentTime = 0; // Repartir depuis le début
+            }
         });
   
         // Event listener for toggling text display
