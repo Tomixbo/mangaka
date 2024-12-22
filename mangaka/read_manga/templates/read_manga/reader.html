@@ -253,7 +253,8 @@ Manga Reader - Read Manga
         // Fonction pour jouer l'audio d'un panneau
         function playPanelAudio(index) {
             if (audios[index]) {
-                audioElement.src = `/media/audio_files/${audios[index]}`;
+                const timestamp = new Date().getTime();
+                audioElement.src = `/media/audio_files/${audios[index]}?t=${timestamp}`;
                 audioElement.play();
 
                 audioElement.onended = () => {

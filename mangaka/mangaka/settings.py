@@ -51,6 +51,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "mangaka.middleware.no_cache.NoCacheMiddleware"
 ]
 
 ROOT_URLCONF = "mangaka.urls"
@@ -134,3 +135,4 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Tailwind config
 TAILWIND_APP_NAME = 'theme'
 NPM_BIN_PATH = "C:/Program Files/nodejs/npm.cmd"
+
