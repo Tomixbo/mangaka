@@ -50,7 +50,7 @@ def sort_texts_in_panel(texts, horizontal_threshold=50):
     - Sort texts within each column from top to bottom.
     """
     if not texts:
-        print("No texts to sort in panel.")
+        #print("No texts to sort in panel.")
         return []
 
     # Sort texts by x_min (from right to left)
@@ -80,13 +80,13 @@ def sort_texts_in_panel(texts, horizontal_threshold=50):
         column.sort(key=lambda t: t[1])
 
     # Debugging: print each column
-    for idx, column in enumerate(grouped_columns):
-        print(f"Column {idx + 1}: {column}")
+    #for idx, column in enumerate(grouped_columns):
+        #print(f"Column {idx + 1}: {column}")
 
     # Flatten the columns into a single sorted list
     sorted_texts = [text for column in grouped_columns for text in column]
 
-    print(f"Final sorted texts: {sorted_texts}")
+    #print(f"Final sorted texts: {sorted_texts}")
     return sorted_texts
 
 
@@ -102,20 +102,18 @@ def preprocess_image(image):
 
 def format_text_to_sentence_case(text):
     # Remplacer tous les points, exclamations, interrogations (1 ou plus) par un espace
-    text = re.sub(r'\.{2,}', ' ', text)
+    #print(text)
+    #text = re.sub(r'\.{2,}', ' ', text)
     text = re.sub(r'!{2,}', '!', text)
     text = re.sub(r'\?{2,}', '?', text)
     text = re.sub(r'(\?!|!\?)', '!', text)
     text = re.sub(r'(\? | !|! |\? )', '!', text)
     text = re.sub(r'[.,!?]+', lambda m: m.group(0)[0], text) # Supprimer les répétitions de symbole
     text = re.sub(r'([.,])(?=\S)', r'\1 ', text)  # Ajouter un espace après les , ou . si absent
-    text = re.sub(r'^[-_]+|[-_]+$', '', text)  # Enlever les tirets ou underscores au début/fin
-    
-    # Supprimer les retours à la ligne (\n), les tabulations (\t), les backspaces (\b), et autres échappements invisibles
-    text = re.sub(r'[\n\t\b\r\f\v]', ' ', text)
-    
-    # Remplacer plusieurs espaces consécutifs par un seul espace
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r'^[\s_-]+|[\s_-]+$', '', text)   
+    text = re.sub(r'[\n\t\b\r\f\v]', ' ', text) # Supprimer les retours à la ligne (\n), les tabulations (\t), les backspaces (\b), et autres échappements invisibles 
+    text = re.sub(r'\s+', ' ', text).strip() # Remplacer plusieurs espaces consécutifs par un seul espace
+    #print(text)
 
     sentences = nltk.sent_tokenize(text, language='french')
     formatted_sentences = []

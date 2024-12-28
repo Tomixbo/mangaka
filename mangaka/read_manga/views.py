@@ -137,7 +137,7 @@ def process_uploaded_images_old(request):
                     if preprocessed_text is not None:
                         ocr_result = ocr.ocr(preprocessed_text, cls=False)
                         if ocr_result and isinstance(ocr_result[0], list):
-                            recognized_text = " ".join([line[1][0] for line in ocr_result[0]])
+                            recognized_text = " ".join([re.sub(r'^\s*[-_]+\s*|\s*[-_]+\s*$', '', str(line[1][0])) for line in ocr_result[0]])
                             corrected_text = format_text_to_sentence_case(recognized_text)
                             processed_texts.append(corrected_text)
 
@@ -276,7 +276,18 @@ def process_uploaded_images(request):
                     if preprocessed_text is not None:
                         ocr_result = ocr.ocr(preprocessed_text, cls=False)
                         if ocr_result and isinstance(ocr_result[0], list):
-                            recognized_text = " ".join([line[1][0] for line in ocr_result[0]])
+                            #print(ocr_result)
+                            lines = []
+                            for line in ocr_result[0]:
+                                original_line = str(line[1][0])  # Conservez l'original pour vérification
+                                cleaned_line = re.sub(r'^\s*[-_]+\s*|\s*[-_]+\s*$', '', original_line)  # Nettoyez la ligne
+
+                                if original_line.strip().endswith('-'):  # Vérifiez si l'original se termine par un tiret
+                                    lines.append(cleaned_line)  # Pas d'espace ajouté
+                                else:
+                                    lines.append(cleaned_line + ' ')  # Ajoutez un espace pour les lignes normales
+
+                            recognized_text = "".join(lines).strip()  # Joindre sans espace supplémentaire au début/fin
                             corrected_text = format_text_to_sentence_case(recognized_text)
                             processed_texts.append(corrected_text)
 
