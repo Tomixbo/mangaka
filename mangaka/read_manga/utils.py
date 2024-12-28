@@ -14,7 +14,7 @@ import re
 
 # Initialisation de PaddleOCR et LanguageTool
 ocr = PaddleOCR(
-    rec_model_dir=os.path.join(settings.BASE_DIR, 'models','rec_french_manga_latin_3'),
+    rec_model_dir=os.path.join(settings.BASE_DIR, 'models','rec_french_manga_latin_4'),
     use_angle_cls=True,
     show_log=False,
     lang='latin'
@@ -107,6 +107,9 @@ def format_text_to_sentence_case(text):
     text = re.sub(r'\?{2,}', '?', text)
     text = re.sub(r'(\?!|!\?)', '!', text)
     text = re.sub(r'(\? | !|! |\? )', '!', text)
+    text = re.sub(r'[.,!?]+', lambda m: m.group(0)[0], text) # Supprimer les répétitions de symbole
+    text = re.sub(r'([.,])(?=\S)', r'\1 ', text)  # Ajouter un espace après les , ou . si absent
+    text = re.sub(r'^[-_]+|[-_]+$', '', text)  # Enlever les tirets ou underscores au début/fin
     
     # Supprimer les retours à la ligne (\n), les tabulations (\t), les backspaces (\b), et autres échappements invisibles
     text = re.sub(r'[\n\t\b\r\f\v]', ' ', text)
