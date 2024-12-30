@@ -83,9 +83,9 @@ This application provides APIs for detecting panels and texts in images, recogni
 ### Running the Application
 
 1. Save the application code to a file, e.g., `app.py`.
-2. Start the server using Uvicorn:
+2. Start the server using Gunicorn:
    ```bash
-   uvicorn app:app --host 0.0.0.0 --port 5000 --reload
+   uvicorn app:app --host 0.0.0.0 --port 5000 --workers 1 --reload
    ```
 
 ### Accessing the API
