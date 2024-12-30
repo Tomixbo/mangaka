@@ -1,0 +1,16 @@
+fastapi
+numpy<2.0
+Pillow>=8.2.0
+opencv-python
+ultralytics
+uvicorn
+python-multipart
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch 
+torchvision 
+torchaudio 
+paddleocr
+coqui-tts
+
+
+
