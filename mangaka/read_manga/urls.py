@@ -4,6 +4,14 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
-    path('', views.index, name='index'),
-    path('upload-images/', views.process_uploaded_images, name='upload_images'),
+    # Add Manga view
+    path('add-manga/', views.add_manga, name='add_manga'),
+
+    # Manga List view
+    path('', views.manga_list, name='manga_list'),
+
+    # Manga Reader view
+    path('read-manga/<uuid:manga_id>/', views.reader, name='read_manga'),
+
+    # Static media files
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
