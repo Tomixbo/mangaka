@@ -30,4 +30,4 @@ python manage.py runserver
 ```
 
 # Demo
-[![Video Demo](https://img.youtube.com/vi/5Z5qK5bgWp8/0.jpg)](https://www.youtube.com/watch?v=5Z5qK5bgWp8)
+[![Video Demo](https://img.youtube.com/vi/GvON2_ZyZ_4/0.jpg)](https://www.youtube.com/watch?v=GvON2_ZyZ_4)
