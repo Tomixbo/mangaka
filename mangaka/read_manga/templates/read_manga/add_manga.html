@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block title %}
-Ajouter un Manga - Manga Reader
+Add Manga - Manga Reader
 {% endblock %}
 
 {% block content %}
@@ -13,7 +13,7 @@ Ajouter un Manga - Manga Reader
         
         <!-- Title Field -->
         <div class="mb-4 w-full">
-            <label for="title" class="block text-gray-300 text-sm mb-2">Titre du Manga</label>
+            <label for="title" class="block text-gray-300 text-sm mb-2">Manga Title</label>
             <input type="text" name="title" id="title" required
                    class="w-full bg-gray-700 text-gray-100 border border-gray-600 rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
@@ -27,15 +27,21 @@ Ajouter un Manga - Manga Reader
 
         <!-- File Upload Field -->
         <div class="mb-4 w-full">
-            <label for="images" class="block text-gray-300 text-sm mb-2">Importer les images du Manga</label>
+            <label for="images" class="block text-gray-300 text-sm mb-2">Import Manga images (.jpg)</label>
             <input type="file" name="images" id="images" multiple required
                    class="w-full text-gray-100 bg-gray-700 border border-gray-600 rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
 
         <!-- Submit Button -->
         <button type="submit" class="bg-blue-500 text-white py-2 px-6 rounded hover:bg-blue-600 transition shadow-lg">
-            Ajouter
+            Add Manga
         </button>
     </form>
+    
 </div>
+<div class="text-center mx-auto text-sm w-fit mt-5">
+    <a href="/" class=" bg-gray-700 text-white py-2 px-4 rounded hover:bg-blue-700 transition shadow-lg w-auto block text-center">
+        Manga List >>
+    </a>
+  </div>
 {% endblock %}

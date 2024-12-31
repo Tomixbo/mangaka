@@ -5,50 +5,57 @@ Liste des Mangas - Manga Reader
 {% endblock %}
 
 {% block content %}
-<div class="container mx-auto p-6">
+<div class="container mx-auto h-full flex flex-col">
     <!-- Button to add a new manga -->
-    <div class="flex justify-end mb-6">
-        <a href="{% url 'add_manga' %}" class="bg-blue-500 text-white py-2 px-6 rounded hover:bg-blue-600 transition shadow-lg">
-            Importer Nouveau Manga
+    <div class="flex justify-end mb-2 ">
+        <a href="{% url 'add_manga' %}" class="bg-transparent border border-blue-600 text-white py-2 px-6 rounded hover:bg-blue-600 transition shadow-lg">
+            Import New Manga
         </a>
     </div>
 
-    <!-- Display Manga Cards -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {% for manga in mangas %}
-        <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg overflow-hidden" style="width: 160px;">
-            <!-- Manga Image -->
-            <div class="h-40 w-full overflow-hidden">
-                <img src="{{ manga.cover_image_url }}" alt="{{ manga.title }}" class="w-full h-full object-cover">
-            </div>
+    <div class="grow overflow-y-auto border-t py-5 border-gray-600">
+        <!-- Display Manga Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4 ">
+            {% for manga in mangas %}
+            <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg overflow-hidden " >
+                
+                <!-- Manga Image -->
+                <div class="h-[180px] sm:h-[150px] md:h-[150px] lg:h-[350px] xl:h-[430px] 2xl:h-[520px] overflow-hidden relative" >
+                    <img src="{{ manga.cover_image_url }}" alt="{{ manga.title }}" class="w-full object-cover z-0 absolute">
+                    <!-- Description -->
+                    <div class="absolute z-10 bg-blue-900 bg-opacity-70 text-white p-5 w-full h-full opacity-0 hover:opacity-100 transition-opacity">
+                        {{ manga.description }}
+                    </div>
+                </div>
 
-            <!-- Manga Details -->
-            <div class="p-2">
-                <!-- Title -->
-                <h3 class="text-sm font-bold text-gray-100 truncate">{{ manga.title }}</h3>
+                <!-- Manga Details -->
+                <div class="p-2">
+                    <!-- Title -->
+                    <h3 class="text-sm font-bold text-gray-100 truncate">{{ manga.title }}</h3>
 
-                <!-- Status and Read Button -->
-                <div class="flex items-center justify-between mt-2">
-                    <span class="text-xs text-gray-400">
-                        {% if manga.status == 'processing' %}
-                            En cours
+                    <!-- Status and Read Button -->
+                    <div class="flex items-center justify-between mt-2">
+                        <span class="text-xs text-gray-400">
+                            {% if manga.status == 'processing' %}
+                                In process
+                            {% else %}
+                                Ready
+                            {% endif %}
+                        </span>
+                        {% if manga.status == 'ready' %}
+                            <a href="{% url 'read_manga' manga.id %}" class="py-1 px-2 rounded bg-green-500 hover:bg-green-600 text-xs text-white">
+                                Read
+                            </a>
                         {% else %}
-                            Prêt
+                            <a href="#disabled" class="py-1 px-2 rounded bg-gray-500 text-xs text-gray-300 cursor-not-allowed">
+                                Read
+                            </a>
                         {% endif %}
-                    </span>
-                    {% if manga.status == 'ready' %}
-                        <a href="{% url 'read_manga' manga.id %}" class="py-1 px-2 rounded bg-green-500 hover:bg-green-600 text-xs text-white">
-                            Lire
-                        </a>
-                    {% else %}
-                        <a href="#disabled" class="py-1 px-2 rounded bg-gray-500 text-xs text-gray-300 cursor-not-allowed">
-                            Lire
-                        </a>
-                    {% endif %}
+                    </div>
                 </div>
             </div>
+            {% endfor %}
         </div>
-        {% endfor %}
     </div>
 </div>
 {% endblock %}
