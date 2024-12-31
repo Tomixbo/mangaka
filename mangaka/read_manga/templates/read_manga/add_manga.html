@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}
+Ajouter un Manga - Manga Reader
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-grow items-center justify-center">
+    <!-- Form for adding a new manga -->
+    <form id="manga-form" action="{% url 'add_manga' %}" method="POST" enctype="multipart/form-data"
+          class="border-4 border-dashed border-gray-500 p-6 rounded-lg bg-gray-800 flex flex-col items-center justify-center">
+        {% csrf_token %}
+        
+        <!-- Title Field -->
+        <div class="mb-4 w-full">
+            <label for="title" class="block text-gray-300 text-sm mb-2">Titre du Manga</label>
+            <input type="text" name="title" id="title" required
+                   class="w-full bg-gray-700 text-gray-100 border border-gray-600 rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- Description Field -->
+        <div class="mb-4 w-full">
+            <label for="description" class="block text-gray-300 text-sm mb-2">Description</label>
+            <textarea name="description" id="description" rows="4" required
+                      class="w-full bg-gray-700 text-gray-100 border border-gray-600 rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+        </div>
+
+        <!-- File Upload Field -->
+        <div class="mb-4 w-full">
+            <label for="images" class="block text-gray-300 text-sm mb-2">Importer les images du Manga</label>
+            <input type="file" name="images" id="images" multiple required
+                   class="w-full text-gray-100 bg-gray-700 border border-gray-600 rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" class="bg-blue-500 text-white py-2 px-6 rounded hover:bg-blue-600 transition shadow-lg">
+            Ajouter
+        </button>
+    </form>
+</div>
+{% endblock %}
