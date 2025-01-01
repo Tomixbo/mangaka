@@ -115,13 +115,38 @@ async def text_to_speech(
 ):
     async with gpu_semaphore:  # Restrict GPU access
         try:
+            # Si le texte est vide, générer un fichier audio avec du silence
+            if not text.strip():
+                # Générer 1 seconde de silence
+                silence_duration = 1  # durée en secondes
+                sample_rate = 22050  # fréquence d'échantillonnage
+                silence = np.zeros(int(sample_rate * silence_duration), dtype=np.float32)
+
+                # Créer le buffer audio avec le silence
+                audio_buffer = BytesIO()
+                write(audio_buffer, sample_rate, silence)
+                audio_buffer.seek(0)
+
+                return StreamingResponse(
+                    audio_buffer,
+                    media_type="audio/wav",
+                    headers={"Content-Disposition": "inline; filename=output.wav"}
+                )
+
+            # Si le texte n'est pas vide, générer l'audio avec le modèle TTS
             wav = await asyncio.to_thread(tts_model.tts, text=text, speaker=speaker, language=language)
             audio_buffer = BytesIO()
             write(audio_buffer, 22050, np.array(wav, dtype=np.float32))
             audio_buffer.seek(0)
-            return StreamingResponse(audio_buffer, media_type="audio/wav", headers={"Content-Disposition": "inline; filename=output.wav"})
+            
+            return StreamingResponse(
+                audio_buffer,
+                media_type="audio/wav",
+                headers={"Content-Disposition": "inline; filename=output.wav"}
+            )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"TTS error: {e}")
+
 
 # Health check
 @app.get("/health")
