@@ -118,7 +118,7 @@ async def text_to_speech(
             # Si le texte est vide, générer un fichier audio avec du silence
             if not text.strip():
                 # Générer 1 seconde de silence
-                silence_duration = 1  # durée en secondes
+                silence_duration = 2  # durée en secondes
                 sample_rate = 22050  # fréquence d'échantillonnage
                 silence = np.zeros(int(sample_rate * silence_duration), dtype=np.float32)
 
