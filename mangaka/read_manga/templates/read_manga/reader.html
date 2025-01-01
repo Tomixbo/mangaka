@@ -37,10 +37,38 @@ Manga Reader - Read Manga
                 </div>
             </div>
 
-            <div id="text-content" class="hidden w-full md:w-[30vw] flex-grow h-1/3 md:h-full bg-gray-100 rounded-lg p-4 overflow-y-auto">
-                <!--<h3 class="text-lg font-bold mb-2 text-black">Textes détectés :</h3>-->
-                <ul id="text-list"></ul>
+
+            <div id="text-content" class="w-full md:w-[30vw] flex-grow h-1/3 md:h-full bg-gray-100 rounded-lg p-4 overflow-y-auto flex flex-col justify-between">
+                <!-- Conteneur pour les textes -->
+                <ul id="text-list" class="text-list-view">
+                    <!-- Les items sous forme de texte -->
+                </ul>
+            
+                <!-- Conteneur pour les textarea lors de la correction -->
+                <div id="text-edit" class=" flex-col hidden text-edit-view text-black">
+                    <!-- Les textarea générés dynamiquement -->
+                </div>
+            
+                <!-- Boutons fixes en bas -->
+                <div class="flex justify-end space-x-2 mt-4">
+                    <!-- Bouton pour activer le mode correction -->
+                    <button id="edit-text-button" class="bg-transparent opacity-50 hover:opacity-100 text-blue-800 border border-blue-800 py-2 px-4 rounded hover:bg-blue-800 hover:bg-opacity-60 hover:text-white transition shadow flex items-center space-x-2">
+                        <i class="fas fa-edit"></i>
+                        <span>Correct text</span>
+                    </button>
+                
+                    <!-- Bouton pour soumettre les corrections -->
+                    <button id="submit-corrections-button" class="hidden bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 transition shadow  items-center space-x-2">
+                        <i class="fas fa-check"></i>
+                        <span>Submit correction</span>
+                    </button>
+                </div>
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+
             </div>
+            
+            
+                      
         </div>
 
         <div class="w-full flex justify-center mt-4 md:px-6">
@@ -88,6 +116,8 @@ Manga Reader - Read Manga
 <script id="panels-data" type="application/json">{{ panels|safe }}</script>
 <script id="texts-data" type="application/json">{{ texts|safe }}</script>
 <script id="audios-data" type="application/json">{{ audios|safe }}</script>
+<script id="panels-metadata" type="application/json">{{ panels_metadata|safe }}</script>
+
 
 <script>
     document.addEventListener("DOMContentLoaded", () => {
@@ -182,7 +212,7 @@ Manga Reader - Read Manga
         // Création de l'élément audio pour la musique de fond
         const backgroundMusic = new Audio('/media/background_music/background_music.mp3');
         backgroundMusic.loop = true;
-        backgroundMusic.volume = 0.2; // Volume de fond sonore
+        backgroundMusic.volume = 0.25; // Volume de fond sonore
 
         let isPlaying = false; // État global pour contrôler la lecture
 
@@ -278,7 +308,7 @@ Manga Reader - Read Manga
                     } else {
                         stopPlayback();
                     }
-                }, 2000);
+                }, 2500);
             }
         }
 
@@ -348,6 +378,133 @@ Manga Reader - Read Manga
   
         // Initial call to display the first panel
         updateContent(currentIndex);
+
+        const editTextButton = document.getElementById("edit-text-button");
+        const submitCorrectionsButton = document.getElementById("submit-corrections-button");
+        const textEdit = document.getElementById("text-edit");
+    
+        // Stocker les textes originaux pour réinitialisation si nécessaire
+        let originalTexts = [];
+    
+        // Activer le mode correction
+        editTextButton.addEventListener("click", () => {
+            // Récupérer les textes originaux depuis le contexte
+            const textsDataElement = document.getElementById("texts-data");
+            let originalTexts = [];
+            if (textsDataElement) {
+                try {
+                    originalTexts = JSON.parse(textsDataElement.textContent)[currentIndex] || [];
+                } catch (error) {
+                    console.error("Error parsing texts data:", error);
+                }
+            }
+
+            // Masquer la liste des textes
+            textList.classList.add("hidden");
+
+            // Afficher les zones de texte pour la correction
+            textEdit.innerHTML = originalTexts
+                .map(
+                    (text, index) =>
+                        `<textarea class="w-full h-16 mb-2 p-2 border border-gray-300 rounded-lg resize-none" data-index="${index}">${text}</textarea>`
+                )
+                .join("");
+            textEdit.classList.add("flex");
+            textEdit.classList.remove("hidden");
+
+            // Afficher le bouton "Soumettre" et masquer le bouton "Activer la correction"
+            editTextButton.classList.add("hidden");
+            submitCorrectionsButton.classList.remove("hidden");
+        });
+        
+        // Récupérer les métadonnées des panneaux
+        const panelsMetadataElement = document.getElementById("panels-metadata");
+        let panelsMetadata = [];
+        if (panelsMetadataElement) {
+            try {
+                panelsMetadata = JSON.parse(panelsMetadataElement.textContent);
+                console.log("Panels metadata loaded:", panelsMetadata);
+            } catch (error) {
+                console.error("Error parsing panels metadata:", error);
+            }
+        } else {
+            console.error("Panels metadata element not found.");
+        }
+    
+        // Soumettre les corrections
+        submitCorrectionsButton.addEventListener("click", () => {
+            const correctedTexts = Array.from(textEdit.querySelectorAll("textarea")).map((textarea) =>
+                textarea.value.trim()
+            );
+
+            const metadata = panelsMetadata[currentIndex]; // Récupérer les métadonnées du panneau actuel
+            if (!metadata) {
+                alert("Données manquantes pour identifier le panneau. Veuillez réessayer.");
+                return;
+            }
+
+            // Envoyer les corrections via AJAX
+            fetch("/update-text/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value,
+                },
+                body: JSON.stringify({
+                    panel_id: metadata.panel_id, // Identifiant du panel à corriger
+                    panel_order: metadata.panel_order,
+                    manga_id: metadata.manga_id, // Identifiant du manga
+                    manga_page_id: metadata.manga_page_id, // Identifiant de la page
+                    corrected_texts: correctedTexts,
+                }),
+                
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Failed to submit corrections");
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    console.log("Response from server:", data); // Ajouté pour débogage
+                    if (data.success) {
+                        // Mettre à jour la liste des textes affichés avec les corrections
+                        textList.innerHTML = correctedTexts
+                            .map(
+                                (text) =>
+                                    `<li class="font-serif italic text-gray-800 text-md lg:text-lg">${text}</li></br>`
+                            )
+                            .join("");
+            
+                        // Revenir à l'affichage normal
+                        textList.classList.remove("hidden");
+                        textEdit.classList.add("hidden");
+                        textEdit.classList.remove("flex");
+            
+                        // Réinitialiser les boutons
+                        submitCorrectionsButton.classList.add("hidden");
+                        editTextButton.classList.remove("hidden");
+            
+                        alert("Corrections enregistrées avec succès !");
+                    } else {
+                        alert(`Échec de l'enregistrement des corrections : ${data.message}`);
+                    }
+                })
+                .catch((error) => {
+                    console.error(error);
+                    alert("Une erreur s'est produite lors de la soumission des corrections.");
+                });
+            console.log("Données envoyées :", {
+                panel_id: textContent.dataset.panelId,
+                panel_order: textContent.dataset.panelOrder,
+                manga_id: textContent.dataset.mangaId,
+                manga_page_id: textContent.dataset.mangaPageId,
+                corrected_texts: correctedTexts,
+            });
+                
+            
+        });
+        
     });
   </script>
 
