@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     'theme',
     'read_manga',
+    "api",
 ]
 
 MIDDLEWARE = [

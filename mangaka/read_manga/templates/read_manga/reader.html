@@ -81,9 +81,20 @@ Manga Reader - Read Manga
             <input id="slider" type="range" min="0" max="{{ panels|length }}" value="0" 
                    class="w-full appearance-none h-2 bg-gray-400 rounded-lg slider-thumb focus:outline-none focus:ring-2 focus:ring-gray-800 transition">
         </div>
-        <div class=" grid-cols-6 w-full items-center mt-4 px-6 hidden md:grid">
+        <div class=" grid-cols-8 w-full items-center mt-4 px-6 hidden md:grid">
           <!-- Left Placeholder (empty) -->
-          <div></div>
+          <div class="flex  space-x-4  col-span-2">
+            <button id="generate-video-button" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition shadow flex items-center space-x-2">
+                <i class="fas fa-video"></i>
+                <span>Generate</span>
+            </button>
+            <a id="download-video-button" class="opacity-50 cursor-not-allowed bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-600 transition shadow flex items-center space-x-2">
+                <i class="fas fa-download"></i>
+                <span>Download</span>
+            </a>
+            
+        </div>
+        
           <!-- Centered Navigation Buttons -->
           <div class="flex justify-center  space-x-4 mx-auto col-span-4">
             <button id="first-button" class="bg-gray-600 text-white py-2 px-4  rounded hover:bg-gray-500 transition shadow">
@@ -105,6 +116,7 @@ Manga Reader - Read Manga
               <i class="fas fa-comment"></i> <!-- Font Awesome icon for toggle -->
             </button>
           </div>
+          <div></div>
           <div class="text-right text-sm">
               <a href="/" class=" bg-gray-700 text-white py-2 px-4 rounded hover:bg-blue-700 transition shadow-lg w-auto hidden md:block  text-center">
                 Return >>
@@ -503,13 +515,7 @@ Manga Reader - Read Manga
                     console.error(error);
                     alert("Une erreur s'est produite lors de la soumission des corrections.");
                 });
-            console.log("Données envoyées :", {
-                panel_id: textContent.dataset.panelId,
-                panel_order: textContent.dataset.panelOrder,
-                manga_id: textContent.dataset.mangaId,
-                manga_page_id: textContent.dataset.mangaPageId,
-                corrected_texts: correctedTexts,
-            });
+           
                 
             
         });
@@ -556,6 +562,90 @@ Manga Reader - Read Manga
                 fullscreenButton.innerHTML = '<i class="fas fa-expand"></i><span class="hidden group-hover:inline-block" >Fullscreen</span>';
             }
         });
+        
+            const metadata = panelsMetadata[currentIndex];
+            const mangaId = metadata.manga_id;
+            const generateVideoButton = document.getElementById("generate-video-button");
+            const downloadVideoButton = document.getElementById("download-video-button");
+        
+            // Fonction pour vérifier si une vidéo existe
+            async function checkVideoExists() {
+                try {
+                    const response = await fetch(`/api/check-video/${mangaId}/`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    if (data.exists) {
+                        downloadVideoButton.classList.remove(
+                            "opacity-50",
+                            "cursor-not-allowed",
+                            "bg-gray-500",
+                            "hover:bg-gray-600"
+                        );
+                        downloadVideoButton.classList.add(
+                            "bg-green-500",
+                            "hover:bg-green-600",
+                            "cursor-pointer"
+                        );
+                       
+                    } else {
+                        downloadVideoButton.classList.remove(
+                            "bg-green-500",
+                            "hover:bg-green-600",
+                            "cursor-pointer"
+                        );
+                        downloadVideoButton.classList.add(
+                            "opacity-50",
+                            "cursor-not-allowed",
+                            "bg-gray-500",
+                            "hover:bg-gray-600"
+                        );
+                        
+                    }
+                } catch (error) {
+                    console.error("Error checking video existence:", error);
+                }
+            }
+        
+            // Appeler la fonction lors du chargement initial
+            checkVideoExists();
+        
+            // Générer la vidéo
+            generateVideoButton.addEventListener("click", async () => {
+                console.log("Generate button")
+                generateVideoButton.disabled = true;
+                generateVideoButton.innerHTML =
+                    '<i class="fas fa-spinner fa-spin"></i><span> Generating...</span>';
+                try {
+                    const response = await fetch(`/api/generate-video/${mangaId}/`, {
+                        method: "POST",
+                    });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    if (data.success) {
+                        alert("Video generated successfully!");
+                        await checkVideoExists();
+                    } else {
+                        alert(`Failed to generate video: ${data.message}`);
+                    }
+                } catch (error) {
+                    console.error("Error generating video:", error);
+                    alert("An error occurred while generating the video.");
+                } finally {
+                    generateVideoButton.disabled = false;
+                    generateVideoButton.innerHTML =
+                        '<i class="fas fa-video"></i><span> Generate Video</span>';
+                }
+            });
+        
+            // Télécharger la vidéo
+            downloadVideoButton.href = `/api/download_video/${mangaId}/`;
+
+       
+        
     });
   </script>
 
