@@ -35,6 +35,12 @@ Manga Reader - Read Manga
                 <div id="play-overlay" class="absolute top-2 left-2 bg-opacity-50 text-red-600 rounded-full p-3 hidden blink">
                     <i class="fas fa-play text-xl"></i>
                 </div>
+                <!-- Fullscreen Toggle Button -->
+                <button id="fullscreen-button" class="absolute top-2 right-2 opacity-30 hover:opacity-90 bg-transparent text-gray-700 hover:text-white p-2 rounded hover:bg-gray-600 transition-all duration-500 shadow flex items-center space-x-2 group">
+                    <i class="fas fa-expand"></i>
+                    <span class="hidden group-hover:inline-block ">Fullscreen</span>
+                </button>
+                
             </div>
 
 
@@ -351,6 +357,9 @@ Manga Reader - Read Manga
         if (playButton) {
             playButton.addEventListener("click", togglePlayPause);
         }
+        previewer.addEventListener("click", () => {
+            togglePlayPause();
+        });
   
         // Event listener for the slider
         slider.addEventListener("input", (e) => {
@@ -505,6 +514,48 @@ Manga Reader - Read Manga
             
         });
         
+        const fullscreenButton = document.getElementById("fullscreen-button");
+    
+        // Fonction pour activer le mode plein écran
+        function enableFullScreen() {
+            if (previewer.requestFullscreen) {
+                previewer.requestFullscreen();
+            } else if (previewer.webkitRequestFullscreen) { // Safari
+                previewer.webkitRequestFullscreen();
+            } else if (previewer.msRequestFullscreen) { // IE/Edge
+                previewer.msRequestFullscreen();
+            }
+        }
+    
+        // Fonction pour quitter le mode plein écran
+        function exitFullScreen() {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) { // Safari
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) { // IE/Edge
+                document.msExitFullscreen();
+            }
+        }
+    
+        // Ajouter un gestionnaire d'événement pour le bouton
+        fullscreenButton.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+                enableFullScreen();
+                fullscreenButton.innerHTML = '<i class="fas fa-compress"></i><span class="hidden group-hover:inline-block" >Exit Fullscreen</span>';
+            } else {
+                exitFullScreen();
+                fullscreenButton.innerHTML = '<i class="fas fa-expand"></i><span class="hidden group-hover:inline-block" >Fullscreen</span>';
+            }
+        });
+    
+        // Réinitialiser le bouton si l'utilisateur quitte le plein écran via d'autres moyens
+        document.addEventListener("fullscreenchange", () => {
+            if (!document.fullscreenElement) {
+                fullscreenButton.innerHTML = '<i class="fas fa-expand"></i><span class="hidden group-hover:inline-block" >Fullscreen</span>';
+            }
+        });
     });
   </script>
 
