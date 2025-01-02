@@ -35,21 +35,66 @@ Manga Reader - Read Manga
                 <div id="play-overlay" class="absolute top-2 left-2 bg-opacity-50 text-red-600 rounded-full p-3 hidden blink">
                     <i class="fas fa-play text-xl"></i>
                 </div>
+                <!-- Fullscreen Toggle Button -->
+                <button id="fullscreen-button" class="absolute top-2 right-2 opacity-30 hover:opacity-90 bg-transparent text-gray-700 hover:text-white p-2 rounded hover:bg-gray-600 transition-all duration-500 shadow flex items-center space-x-2 group">
+                    <i class="fas fa-expand"></i>
+                    <span class="hidden group-hover:inline-block ">Fullscreen</span>
+                </button>
+                
             </div>
 
-            <div id="text-content" class="hidden w-full md:w-[30vw] flex-grow h-1/3 md:h-full bg-gray-100 rounded-lg p-4 overflow-y-auto">
-                <!--<h3 class="text-lg font-bold mb-2 text-black">Textes détectés :</h3>-->
-                <ul id="text-list"></ul>
+
+            <div id="text-content" class="w-full md:w-[30vw] flex-grow h-1/3 md:h-full bg-gray-100 rounded-lg p-4 overflow-y-auto flex flex-col justify-between">
+                <!-- Conteneur pour les textes -->
+                <ul id="text-list" class="text-list-view">
+                    <!-- Les items sous forme de texte -->
+                </ul>
+            
+                <!-- Conteneur pour les textarea lors de la correction -->
+                <div id="text-edit" class=" flex-col hidden text-edit-view text-black">
+                    <!-- Les textarea générés dynamiquement -->
+                </div>
+            
+                <!-- Boutons fixes en bas -->
+                <div class="flex justify-end space-x-2 mt-4">
+                    <!-- Bouton pour activer le mode correction -->
+                    <button id="edit-text-button" class="bg-transparent opacity-50 hover:opacity-100 text-blue-800 border border-blue-800 py-2 px-4 rounded hover:bg-blue-800 hover:bg-opacity-60 hover:text-white transition shadow flex items-center space-x-2">
+                        <i class="fas fa-edit"></i>
+                        <span>Correct text</span>
+                    </button>
+                
+                    <!-- Bouton pour soumettre les corrections -->
+                    <button id="submit-corrections-button" class="hidden bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 transition shadow  items-center space-x-2">
+                        <i class="fas fa-check"></i>
+                        <span>Submit correction</span>
+                    </button>
+                </div>
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+
             </div>
+            
+            
+                      
         </div>
 
         <div class="w-full flex justify-center mt-4 md:px-6">
             <input id="slider" type="range" min="0" max="{{ panels|length }}" value="0" 
                    class="w-full appearance-none h-2 bg-gray-400 rounded-lg slider-thumb focus:outline-none focus:ring-2 focus:ring-gray-800 transition">
         </div>
-        <div class=" grid-cols-6 w-full items-center mt-4 px-6 hidden md:grid">
+        <div class=" grid-cols-8 w-full items-center mt-4 px-6 hidden md:grid">
           <!-- Left Placeholder (empty) -->
-          <div></div>
+          <div class="flex  space-x-4  col-span-2">
+            <button id="generate-video-button" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition shadow flex items-center space-x-2">
+                <i class="fas fa-video"></i>
+                <span class="hidden xl:flex">Generate</span>
+            </button>
+            <a id="download-video-button" class="opacity-50 cursor-not-allowed bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-600 transition shadow flex items-center space-x-2">
+                <i class="fas fa-download"></i>
+                <span class="hidden xl:flex">Download</span>
+            </a>
+            
+        </div>
+        
           <!-- Centered Navigation Buttons -->
           <div class="flex justify-center  space-x-4 mx-auto col-span-4">
             <button id="first-button" class="bg-gray-600 text-white py-2 px-4  rounded hover:bg-gray-500 transition shadow">
@@ -71,6 +116,7 @@ Manga Reader - Read Manga
               <i class="fas fa-comment"></i> <!-- Font Awesome icon for toggle -->
             </button>
           </div>
+          <div></div>
           <div class="text-right text-sm">
               <a href="/" class=" bg-gray-700 text-white py-2 px-4 rounded hover:bg-blue-700 transition shadow-lg w-auto hidden md:block  text-center">
                 Return >>
@@ -88,6 +134,8 @@ Manga Reader - Read Manga
 <script id="panels-data" type="application/json">{{ panels|safe }}</script>
 <script id="texts-data" type="application/json">{{ texts|safe }}</script>
 <script id="audios-data" type="application/json">{{ audios|safe }}</script>
+<script id="panels-metadata" type="application/json">{{ panels_metadata|safe }}</script>
+
 
 <script>
     document.addEventListener("DOMContentLoaded", () => {
@@ -182,7 +230,7 @@ Manga Reader - Read Manga
         // Création de l'élément audio pour la musique de fond
         const backgroundMusic = new Audio('/media/background_music/background_music.mp3');
         backgroundMusic.loop = true;
-        backgroundMusic.volume = 0.2; // Volume de fond sonore
+        backgroundMusic.volume = 0.25; // Volume de fond sonore
 
         let isPlaying = false; // État global pour contrôler la lecture
 
@@ -278,7 +326,7 @@ Manga Reader - Read Manga
                     } else {
                         stopPlayback();
                     }
-                }, 2000);
+                }, 2500);
             }
         }
 
@@ -321,6 +369,9 @@ Manga Reader - Read Manga
         if (playButton) {
             playButton.addEventListener("click", togglePlayPause);
         }
+        previewer.addEventListener("click", () => {
+            togglePlayPause();
+        });
   
         // Event listener for the slider
         slider.addEventListener("input", (e) => {
@@ -348,6 +399,253 @@ Manga Reader - Read Manga
   
         // Initial call to display the first panel
         updateContent(currentIndex);
+
+        const editTextButton = document.getElementById("edit-text-button");
+        const submitCorrectionsButton = document.getElementById("submit-corrections-button");
+        const textEdit = document.getElementById("text-edit");
+    
+        // Stocker les textes originaux pour réinitialisation si nécessaire
+        let originalTexts = [];
+    
+        // Activer le mode correction
+        editTextButton.addEventListener("click", () => {
+            // Récupérer les textes originaux depuis le contexte
+            const textsDataElement = document.getElementById("texts-data");
+            let originalTexts = [];
+            if (textsDataElement) {
+                try {
+                    originalTexts = JSON.parse(textsDataElement.textContent)[currentIndex] || [];
+                } catch (error) {
+                    console.error("Error parsing texts data:", error);
+                }
+            }
+
+            // Masquer la liste des textes
+            textList.classList.add("hidden");
+
+            // Afficher les zones de texte pour la correction
+            textEdit.innerHTML = originalTexts
+                .map(
+                    (text, index) =>
+                        `<textarea class="w-full h-16 mb-2 p-2 border border-gray-300 rounded-lg resize-none" data-index="${index}">${text}</textarea>`
+                )
+                .join("");
+            textEdit.classList.add("flex");
+            textEdit.classList.remove("hidden");
+
+            // Afficher le bouton "Soumettre" et masquer le bouton "Activer la correction"
+            editTextButton.classList.add("hidden");
+            submitCorrectionsButton.classList.remove("hidden");
+        });
+        
+        // Récupérer les métadonnées des panneaux
+        const panelsMetadataElement = document.getElementById("panels-metadata");
+        let panelsMetadata = [];
+        if (panelsMetadataElement) {
+            try {
+                panelsMetadata = JSON.parse(panelsMetadataElement.textContent);
+                console.log("Panels metadata loaded:", panelsMetadata);
+            } catch (error) {
+                console.error("Error parsing panels metadata:", error);
+            }
+        } else {
+            console.error("Panels metadata element not found.");
+        }
+    
+        // Soumettre les corrections
+        submitCorrectionsButton.addEventListener("click", () => {
+            const correctedTexts = Array.from(textEdit.querySelectorAll("textarea")).map((textarea) =>
+                textarea.value.trim()
+            );
+
+            const metadata = panelsMetadata[currentIndex]; // Récupérer les métadonnées du panneau actuel
+            if (!metadata) {
+                alert("Données manquantes pour identifier le panneau. Veuillez réessayer.");
+                return;
+            }
+
+            // Envoyer les corrections via AJAX
+            fetch("/update-text/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value,
+                },
+                body: JSON.stringify({
+                    panel_id: metadata.panel_id, // Identifiant du panel à corriger
+                    panel_order: metadata.panel_order,
+                    manga_id: metadata.manga_id, // Identifiant du manga
+                    manga_page_id: metadata.manga_page_id, // Identifiant de la page
+                    corrected_texts: correctedTexts,
+                }),
+                
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Failed to submit corrections");
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    console.log("Response from server:", data); // Ajouté pour débogage
+                    if (data.success) {
+                        // Mettre à jour la liste des textes affichés avec les corrections
+                        textList.innerHTML = correctedTexts
+                            .map(
+                                (text) =>
+                                    `<li class="font-serif italic text-gray-800 text-md lg:text-lg">${text}</li></br>`
+                            )
+                            .join("");
+            
+                        // Revenir à l'affichage normal
+                        textList.classList.remove("hidden");
+                        textEdit.classList.add("hidden");
+                        textEdit.classList.remove("flex");
+            
+                        // Réinitialiser les boutons
+                        submitCorrectionsButton.classList.add("hidden");
+                        editTextButton.classList.remove("hidden");
+            
+                        alert("Corrections enregistrées avec succès !");
+                    } else {
+                        alert(`Échec de l'enregistrement des corrections : ${data.message}`);
+                    }
+                })
+                .catch((error) => {
+                    console.error(error);
+                    alert("Une erreur s'est produite lors de la soumission des corrections.");
+                });
+           
+                
+            
+        });
+        
+        const fullscreenButton = document.getElementById("fullscreen-button");
+    
+        // Fonction pour activer le mode plein écran
+        function enableFullScreen() {
+            if (previewer.requestFullscreen) {
+                previewer.requestFullscreen();
+            } else if (previewer.webkitRequestFullscreen) { // Safari
+                previewer.webkitRequestFullscreen();
+            } else if (previewer.msRequestFullscreen) { // IE/Edge
+                previewer.msRequestFullscreen();
+            }
+        }
+    
+        // Fonction pour quitter le mode plein écran
+        function exitFullScreen() {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) { // Safari
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) { // IE/Edge
+                document.msExitFullscreen();
+            }
+        }
+    
+        // Ajouter un gestionnaire d'événement pour le bouton
+        fullscreenButton.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+                enableFullScreen();
+                fullscreenButton.innerHTML = '<i class="fas fa-compress"></i><span class="hidden group-hover:inline-block" >Exit Fullscreen</span>';
+            } else {
+                exitFullScreen();
+                fullscreenButton.innerHTML = '<i class="fas fa-expand"></i><span class="hidden group-hover:inline-block" >Fullscreen</span>';
+            }
+        });
+    
+        // Réinitialiser le bouton si l'utilisateur quitte le plein écran via d'autres moyens
+        document.addEventListener("fullscreenchange", () => {
+            if (!document.fullscreenElement) {
+                fullscreenButton.innerHTML = '<i class="fas fa-expand"></i><span class="hidden group-hover:inline-block" >Fullscreen</span>';
+            }
+        });
+        
+            const metadata = panelsMetadata[currentIndex];
+            const mangaId = metadata.manga_id;
+            const generateVideoButton = document.getElementById("generate-video-button");
+            const downloadVideoButton = document.getElementById("download-video-button");
+        
+            // Fonction pour vérifier si une vidéo existe
+            async function checkVideoExists() {
+                try {
+                    const response = await fetch(`/api/check-video/${mangaId}/`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    if (data.exists) {
+                        downloadVideoButton.classList.remove(
+                            "opacity-50",
+                            "cursor-not-allowed",
+                            "bg-gray-500",
+                            "hover:bg-gray-600"
+                        );
+                        downloadVideoButton.classList.add(
+                            "bg-green-500",
+                            "hover:bg-green-600",
+                            "cursor-pointer"
+                        );
+                       
+                    } else {
+                        downloadVideoButton.classList.remove(
+                            "bg-green-500",
+                            "hover:bg-green-600",
+                            "cursor-pointer"
+                        );
+                        downloadVideoButton.classList.add(
+                            "opacity-50",
+                            "cursor-not-allowed",
+                            "bg-gray-500",
+                            "hover:bg-gray-600"
+                        );
+                        
+                    }
+                } catch (error) {
+                    console.error("Error checking video existence:", error);
+                }
+            }
+        
+            // Appeler la fonction lors du chargement initial
+            checkVideoExists();
+        
+            // Générer la vidéo
+            generateVideoButton.addEventListener("click", async () => {
+                console.log("Generate button")
+                generateVideoButton.disabled = true;
+                generateVideoButton.innerHTML =
+                    '<i class="fas fa-spinner fa-spin"></i><span> Generating...</span>';
+                try {
+                    const response = await fetch(`/api/generate-video/${mangaId}/`, {
+                        method: "POST",
+                    });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    if (data.success) {
+                        alert("Video generated successfully!");
+                        await checkVideoExists();
+                    } else {
+                        alert(`Failed to generate video: ${data.message}`);
+                    }
+                } catch (error) {
+                    console.error("Error generating video:", error);
+                    alert("An error occurred while generating the video.");
+                } finally {
+                    generateVideoButton.disabled = false;
+                    generateVideoButton.innerHTML =
+                        '<i class="fas fa-video"></i><span> Generate Video</span>';
+                }
+            });
+        
+            // Télécharger la vidéo
+            downloadVideoButton.href = `/api/download_video/${mangaId}/`;
+
+       
+        
     });
   </script>
 

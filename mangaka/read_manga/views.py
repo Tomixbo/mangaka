@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect,get_object_or_404
+from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from django.http import JsonResponse
 from django.core.files.storage import FileSystemStorage
@@ -74,6 +75,47 @@ async def process_manga_images(manga_id):
     manga.status = 'ready'
     await sync_to_async(manga.save)()
 
+async def generate_audio(session, recognized_text, manga_id, manga_page_id, panel_id):
+    """
+    Generates audio for a given text using the TTS API.
+
+    Args:
+        session (aiohttp.ClientSession): The session to use for API requests.
+        recognized_text (str): The text to convert to audio.
+        manga_id (UUID): The ID of the manga.
+        manga_page_id (int): The ID of the manga page.
+        panel_id (int): The ID of the panel.
+
+    Returns:
+        str or None: The relative path to the generated audio file, or None if failed.
+    """
+    if not recognized_text:
+        print("No recognized text provided. Skipping audio generation.")
+        return None
+
+    # Prepare TTS payload and file paths
+    tts_payload = {"text": recognized_text.replace(".", ","), "speaker": "Damien Black", "language": "fr"}
+    audio_filename = f"audio_{manga_page_id}_{panel_id}.wav"
+    audio_file_path = f"manga/{manga_id}/{audio_filename}"
+    full_audio_file_path = os.path.join(settings.MEDIA_ROOT, audio_file_path)
+
+    try:
+        # Send TTS request
+        async with session.post("http://127.0.0.1:5000/text_to_speech", data=tts_payload) as tts_response:
+            if tts_response.status == 200:
+                # Ensure directory exists and save the audio file
+                os.makedirs(os.path.dirname(full_audio_file_path), exist_ok=True)
+                with open(full_audio_file_path, 'wb') as audio_file:
+                    audio_file.write(await tts_response.read())
+                print(f"Audio file saved at: {audio_file_path}")
+                return audio_file_path
+            else:
+                print(f"Failed to generate audio with status {tts_response.status}")
+                return None
+    except Exception as e:
+        print(f"Error during audio generation: {e}")
+        return None
+
 async def process_image(session, manga_id, manga_page):
     """
     Process a single manga page: detect panels, recognize text, and generate audio.
@@ -148,21 +190,8 @@ async def process_image(session, manga_id, manga_page):
         print(f"Recognized text for panel {panel_id}: {recognized_text}")
 
         # Étape 6: Génération de l'audio
-        audio_file_path = None
-        if recognized_text:
-            tts_payload = {"text": recognized_text.replace(".", ","), "speaker": "Damien Black", "language": "fr"}
-            audio_filename = f"audio_{manga_page_id}_{panel_id}.wav"
-            audio_file_full_path = os.path.join(settings.MEDIA_ROOT, f"manga/{manga_id}/{audio_filename}")
+        audio_file_path = await generate_audio(session, recognized_text, manga_id, manga_page_id, panel_id)
 
-            async with session.post("http://127.0.0.1:5000/text_to_speech", data=tts_payload) as tts_response:
-                if tts_response.status == 200:
-                    os.makedirs(os.path.dirname(audio_file_full_path), exist_ok=True)
-                    with open(audio_file_full_path, 'wb') as audio_file:
-                        audio_file.write(await tts_response.read())
-                    audio_file_path = f"manga/{manga_id}/{audio_filename}"
-                    print(f"Audio file saved at: {audio_file_path}")
-                else:
-                    print(f"Failed to generate audio for panel {panel_id} with status {tts_response.status}")
 
         # Étape 7: Enregistrement dans la base de données
         await sync_to_async(Panel.objects.create)(
@@ -188,9 +217,16 @@ def reader(request, manga_id):
 
     # Génération des données Base64 pour les images de panels
     panels_data_all = []
+    panels_metadata = []  # Tableau pour stocker les métadonnées des panneaux
     for panel in panels:
         with panel.image.open('rb') as image_file:
             panels_data_all.append(base64.b64encode(image_file.read()).decode('utf-8'))
+        panels_metadata.append({
+            "panel_id": str(panel.id),  # Convertir UUID en chaîne
+            "panel_order" : str(panel.order),
+            "manga_page_id": str(panel.manga_page.id),  # Convertir UUID en chaîne
+            "manga_id": str(manga.id)  # Convertir UUID en chaîne
+        })
 
     # Texte reconnu
     text_data_all = [
@@ -202,6 +238,7 @@ def reader(request, manga_id):
 
     # Convertir les données en JSON pour le frontend
     panels_json = json.dumps(panels_data_all)
+    panels_metadata_json = json.dumps(panels_metadata)  # Aucun problème ici maintenant
     texts_json = json.dumps(text_data_all)
     audios_json = json.dumps(audio_data_all)
 
@@ -210,7 +247,67 @@ def reader(request, manga_id):
 
     return render(request, 'read_manga/reader.html', {
         'panels': panels_json,
+        'panels_metadata': panels_metadata_json,  # Ajouter les métadonnées au contexte
         'texts': texts_json,
         'audios': audios_json,
         'thumbnails': thumbnails,
     })
+
+
+
+@csrf_exempt  # Nécessaire si CSRF est activé pour les requêtes AJAX
+def update_text(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            panel_id = data.get("panel_id")
+            panel_order = data.get("panel_order")
+            manga_id = data.get("manga_id")
+            manga_page_id = data.get("manga_page_id")
+            corrected_texts = data.get("corrected_texts")
+
+            # Log des données reçues
+            print(f"Requête reçue : panel_id={panel_id}, panel_order={panel_order}, manga_id={manga_id}, manga_page_id={manga_page_id}")
+
+            # Rechercher le panneau correspondant
+            panel = Panel.objects.filter(
+                id=panel_id,
+                manga_page__id=manga_page_id,
+                manga_page__manga__id=manga_id
+            ).first()
+
+            if not panel:
+                return JsonResponse({"success": False, "message": "Panneau introuvable"})
+
+            # Mettre à jour le texte du panneau
+            panel.recognized_text = "\n".join(corrected_texts)
+            panel.save()
+
+            # Lancer la génération d'audio dans un thread
+            def audio_generation_thread(panel, manga_id, manga_page_id, panel_order):
+                async def generate_audio_task():
+                    async with ClientSession() as session:
+                        await generate_audio(session, panel.recognized_text, manga_id, manga_page_id, panel_order)
+
+                # Créez un nouvel event loop pour le thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+                try:
+                    # Exécutez la tâche asynchrone dans ce nouvel event loop
+                    loop.run_until_complete(generate_audio_task())
+                finally:
+                    loop.close()
+
+            # Lancer le traitement dans un thread
+            threading.Thread(
+                target=audio_generation_thread,
+                args=(panel, manga_id, manga_page_id, panel_order),
+                name="audio_generation_thread"
+            ).start()
+
+            return JsonResponse({"success": True, "message": "Texte mis à jour et audio en cours de génération."})
+        except Exception as e:
+            return JsonResponse({"success": False, "message": str(e)})
+
+    return JsonResponse({"success": False, "message": "Invalid request method"})
