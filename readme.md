@@ -30,4 +30,11 @@ python manage.py runserver
 ```
 
 # Demo
+## Mangaka v1.1
 [![Video Demo](https://img.youtube.com/vi/GvON2_ZyZ_4/0.jpg)](https://www.youtube.com/watch?v=GvON2_ZyZ_4)
+
+## New features : Generate and Download video, Fullscreen mode
+[![Video Demo](https://img.youtube.com/vi/MyXSwlFDchg.jpg)](https://www.youtube.com/watch?v=MyXSwlFDchg)
+
+## Example generated video :
+[![Video Demo](https://img.youtube.com/vi/BxJqaV6_--Y.jpg)](https://www.youtube.com/watch?v=BxJqaV6_--Y)
