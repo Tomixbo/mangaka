@@ -11,8 +11,10 @@ from django.http import HttpResponseRedirect
 from read_manga.models import Manga, Panel
 import json
 import cv2
+import numpy as np
 import wave
-
+from moviepy.editor import VideoFileClip
+from moviepy.video.fx.all import resize, crop
 
 
 
@@ -52,6 +54,121 @@ def get_audio_duration(file_path):
 def get_video_path(manga_id):
     return os.path.join(settings.MEDIA_ROOT, "manga_videos", f"{manga_id}", f"{manga_id}.mp4")
 
+
+def smooth_speed_curve(t, accel_duration=0.5, total_duration=1.0):
+    """
+    Generates a smooth speed curve with acceleration at the beginning and end.
+    """
+    accel_fraction = accel_duration / total_duration  # Fraction of time for acceleration
+    middle_start = accel_fraction
+    middle_end = 1.0 - accel_fraction
+
+    if t < middle_start:  # Accelerating phase at the start
+        return 1
+    elif t > middle_end:  # Accelerating phase at the end
+        return 1
+    else:  # Constant-speed phase in the middle
+        return 0.1
+
+def apply_zoom_to_video(input_video_path, output_video_path, start_scale=1.0, end_scale=1.1, fps=30):
+    """
+    Applies a zoom effect with a smooth speed curve to the input video while retaining the audio.
+    Handles cases where the input video has no audio.
+    """
+    # Determine the root directory of the input video
+    root_dir = os.path.dirname(input_video_path)
+    temp_audio_path = os.path.join(root_dir, "temp_audio.aac")
+    temp_video_path = os.path.join(root_dir, "temp_video.mp4")
+
+    # Step 1: Extract Audio
+    try:
+        extract_audio_command = [
+            "ffmpeg", "-i", input_video_path, "-vn",  # Extract audio only
+            "-acodec", "copy", temp_audio_path, "-y"  # Overwrite if exists
+        ]
+        subprocess.run(extract_audio_command, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        audio_present = True
+    except subprocess.CalledProcessError:
+        print("No audio found in the input video.")
+        audio_present = False
+
+    # Step 2: Apply Zoom (Video Processing)
+    cap = cv2.VideoCapture(input_video_path)
+    if not cap.isOpened():
+        raise ValueError(f"Unable to open video file: {input_video_path}")
+
+    # Get video properties
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration = total_frames / fps
+
+    # Prepare the video writer
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
+
+    # Precompute scale factors
+    times = np.linspace(0, 1, total_frames)  # Normalized time (0 to 1)
+    speed_factors = np.array([smooth_speed_curve(t, accel_duration=0.5, total_duration=duration) for t in times])
+
+    # Normalize speed factors to ensure monotonic progression
+    cumulative_speed = np.cumsum(speed_factors)
+    cumulative_speed /= cumulative_speed[-1]  # Normalize to 1.0 at the end
+
+    # Map normalized cumulative speed to scales
+    scales = start_scale + (end_scale - start_scale) * cumulative_speed
+
+    # Center of the frame
+    center_x, center_y = width // 2, height // 2
+
+    for frame_index in range(total_frames):
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Get the current zoom scale
+        scale = scales[frame_index]
+
+        # Compute the transformation matrix
+        transform_matrix = cv2.getRotationMatrix2D((center_x, center_y), 0, scale)
+
+        # Apply the transformation
+        transformed_frame = cv2.warpAffine(
+            frame,
+            transform_matrix,
+            (width, height),
+            flags=cv2.INTER_LINEAR,
+            borderValue=(255, 255, 255),  # White padding
+        )
+
+        # Write the transformed frame
+        out.write(transformed_frame)
+
+    cap.release()
+    out.release()
+
+    # Step 3: Merge Audio Back (if audio exists)
+    if audio_present:
+        merge_command = [
+            "ffmpeg", "-i", temp_video_path, "-i", temp_audio_path,
+            "-c:v", "copy", "-c:a", "aac", "-strict", "experimental",
+            output_video_path, "-y"
+        ]
+    else:
+        merge_command = [
+            "ffmpeg", "-i", temp_video_path,
+            "-c:v", "copy", "-an", output_video_path, "-y"  # No audio
+        ]
+    subprocess.run(merge_command, check=True)
+
+    # Step 4: Clean up temporary files
+    try:
+        os.remove(temp_video_path)
+        if audio_present:
+            os.remove(temp_audio_path)
+    except OSError as e:
+        print(f"Error removing temporary files: {e}")
+
 @csrf_exempt
 @require_POST
 def generate_video_api(request, manga_id):
@@ -84,7 +201,6 @@ def generate_video_api(request, manga_id):
             else:
                 audio_duration = 2
 
-
             if panel.audio_file:
                 ffmpeg_command = [
                     "ffmpeg", "-y",
@@ -92,8 +208,8 @@ def generate_video_api(request, manga_id):
                     "-i", image_path,
                     "-i", panel.audio_file.path,
                     "-filter_complex", (
-                        f"[1:a]apad=pad_dur={audio_duration},aresample=async=1:min_hard_comp=0.100:first_pts=0[audio];"
-                        "[0:v]scale='if(gt(a,16/9),854,-2):if(gt(a,16/9),-2,480)',"
+                        f"[1:a]apad=pad_dur={audio_duration+0.5},aresample=async=1:min_hard_comp=0.100:first_pts=0[audio];"
+                        "[0:v]scale='if(gt(a,16/9),854*0.92,-2):if(gt(a,16/9),-2,480*0.92)',"
                         "pad=854:480:(ow-iw)/2:(oh-ih)/2:white[scaled];"
                         "[scaled][audio]concat=n=1:v=1:a=1[outv][outa]"
                     ),
@@ -102,7 +218,7 @@ def generate_video_api(request, manga_id):
                     "-pix_fmt", "yuv420p",
                     "-c:v", "libx264",
                     "-c:a", "aac", "-ar", "22050", "-b:a", "128k",
-                    "-t", str(audio_duration),
+                    "-t", str(audio_duration+0.5),
                     temp_video_path
                 ]
             else:
@@ -110,19 +226,27 @@ def generate_video_api(request, manga_id):
                     "ffmpeg", "-y",
                     "-loop", "1",
                     "-i", image_path,
-                    "-f", "lavfi", "-t", "2", "-i", "anullsrc=r=22050:cl=mono",
+                    "-f", "lavfi", "-t", "2.5", "-i", "anullsrc=r=22050:cl=mono",
                     "-vf", (
-                        "scale='if(gt(a,16/9),854,-2):if(gt(a,16/9),-2,480)',"
+                        "scale='if(gt(a,16/9),854*0.92,-2):if(gt(a,16/9),-2,480*0.92)',"
                         "pad=854:480:(ow-iw)/2:(oh-ih)/2:white"
                     ),
                     "-pix_fmt", "yuv420p",
                     "-c:v", "libx264",
                     "-c:a", "aac", "-ar", "22050", "-b:a", "128k",
-                    "-t", "2",
+                    "-t", "2.5",
                     temp_video_path
                 ]
 
             subprocess.run(ffmpeg_command, check=True)
+
+            # Step 2: Apply zoom effect using OpenCV
+            zoomed_video_path = os.path.join(video_folder, f"zoomed_panel_{panel.id}.mp4")
+            apply_zoom_to_video(temp_video_path, zoomed_video_path, start_scale=1.0, end_scale=1.1, fps=30)
+
+            # Replace temp_video_path with zoomed_video_path for concatenation
+            temp_videos[-1] = zoomed_video_path
+            os.remove(temp_video_path)  # Clean up intermediate video
 
         # Créer un fichier de concaténation
         concat_file_path = os.path.join(video_folder, "concat_list.txt")
