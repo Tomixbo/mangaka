@@ -202,15 +202,51 @@ Manga Reader - Read Manga
   
         // Update slider range and value
         slider.max = panels.length - 1;
-  
+
+        // Function for Fade and Zoom animations
+        function applyFadeZoomAnimation(element, durationInSeconds) {
+            // Durée fixe pour fade-in et fade-out
+            const fadeDuration = 0.5; // secondes
+            const zoomDuration = durationInSeconds - 2 * fadeDuration; // Le reste est pour le zoom
+        
+            // Définir les variables CSS dynamiquement
+            element.style.setProperty("--fade-in-duration", `${fadeDuration}s`);
+            element.style.setProperty("--zoom-duration", `${zoomDuration}s`);
+            element.style.setProperty("--fade-out-duration", `${fadeDuration}s`);
+        
+            // Supprimer les animations existantes
+            element.classList.remove("fade-zoom-animation");
+            void element.offsetWidth; // Forcer le recalcul du DOM
+        
+            // Ajouter la durée dynamique
+            element.style.setProperty("--animation-duration", `${durationInSeconds}s`);
+        
+            // Ajouter l'animation combinée
+            element.classList.add("fade-zoom-animation");
+        
+            
+        }
+
         // Function to update the preview image and associated text
-        function updateContent(index) {
+        function updateContent(index, duration = 10) {
+        
             if (panels.length > 0 && previewImage) {
                 const panelBase64 = panels[index];
+        
+                // Mettre à jour l'image immédiatement
                 previewImage.src = `data:image/jpeg;base64,${panelBase64}`;
                 slider.value = index;
-  
-                // Update the text list
+        
+                // Appliquer l'animation combinée si en mode lecture
+                if (isPlaying) {
+                    applyFadeZoomAnimation(previewImage, duration);
+                } else {
+                    // Réinitialiser les styles si hors mode lecture
+                    previewImage.style.opacity = "1";
+                    previewImage.style.transform = "scale(1)";
+                }
+        
+                // Mettre à jour les textes immédiatement
                 if (texts[index]) {
                     textList.innerHTML = texts[index]
                         .map(
@@ -226,13 +262,22 @@ Manga Reader - Read Manga
             }
         }
   
-  
         // Création de l'élément audio pour la musique de fond
         const backgroundMusic = new Audio('/media/background_music/background_music.mp3');
         backgroundMusic.loop = true;
         backgroundMusic.volume = 0.25; // Volume de fond sonore
 
         let isPlaying = false; // État global pour contrôler la lecture
+
+        function resetAnimation(element) {
+            // Supprimer toutes les classes liées à l'animation
+            element.classList.remove("fade-zoom-animation");
+        
+            // Réinitialiser les propriétés CSS
+            element.style.opacity = "1";
+            element.style.transform = "scale(1)";
+        }
+        
 
         // Fonction pour activer/désactiver la lecture
         function togglePlayPause() {
@@ -244,16 +289,27 @@ Manga Reader - Read Manga
                 backgroundMusic.pause();
                 isPlaying = false;
 
+                // Réinitialiser les animations sur l'image
+                resetAnimation(previewImage);
+
                 // Mettre à jour le bouton et réactiver la navigation
                 playButton.innerHTML = '<i class="fas fa-play"></i>';
                 playButton.classList.replace("bg-green-600", "bg-gray-600");
                 playOverlay.classList.add("hidden");
                 navigationButtons.forEach(button => button.disabled = false);
 
+                setTimeout(() => {
+                    updateContent(currentIndex); // Appliquer l'animation au premier panneau
+                }, 100); // 100ms pour permettre le rafraîchissement DOM
+
                 console.log("Playback paused.");
             } else {
                 // Play : démarrer ou reprendre la lecture
-                playPanelAudio(currentIndex);
+                // Mettre à jour le contenu avec un délai pour le premier panneau
+                setTimeout(() => {
+                    updateContent(currentIndex); // Appliquer l'animation au premier panneau
+                    playPanelAudio(currentIndex);
+                }, 100); // 100ms pour permettre le rafraîchissement DOM
 
                 // Démarrer la musique de fond si elle est en pause
                 if (backgroundMusic.paused || backgroundMusic.currentTime === 0) {
@@ -294,41 +350,72 @@ Manga Reader - Read Manga
             console.log("Playback stopped.");
         }
 
-        // Fonction pour jouer l'audio d'un panneau
         function playPanelAudio(index) {
             if (audios[index]) {
                 const timestamp = new Date().getTime();
                 audioElement.src = `${audios[index]}?t=${timestamp}`;
-                audioElement.play();
-
-                audioElement.onended = () => {
-                    if (isPlaying && currentIndex < panels.length - 1) {
-                        currentIndex++;
-                        updateContent(currentIndex);
-                        playPanelAudio(currentIndex);
-                    } else {
-                        stopPlayback();
-                    }
-                };
-
+                audioElement.load(); // Charger l'audio avant de jouer
+        
+                // Attendre que la durée soit disponible
+                audioElement.addEventListener(
+                    "loadedmetadata",
+                    () => {
+                        const audioDuration = audioElement.duration; // Durée en secondes
+                        const panelDuration = audioDuration > 0 ? audioDuration : 2.5; // 2.5s par défaut si la durée est inconnue
+        
+                        // Jouer l'audio
+                        audioElement.play();
+        
+                        // Mettre à jour le contenu avec la durée exacte
+                        updateContent(index, panelDuration);
+        
+                        // Passer au panneau suivant lorsque l'audio est terminé
+                        audioElement.onended = () => {
+                            if (isPlaying && currentIndex < panels.length - 1) {
+                                setTimeout(() => {
+                                    currentIndex++;
+                                    playPanelAudio(currentIndex);
+                                }, 500); // Délai après la fin de l'audio
+                            } else {
+                                stopPlayback();
+                            }
+                        };
+                    },
+                    { once: true } // Écouter cet événement une seule fois
+                );
+        
                 audioElement.onerror = () => {
                     console.error("Error playing audio, skipping to next panel.");
-                    currentIndex++;
-                    playPanelAudio(currentIndex);
+                    const defaultDuration = 2.5; // Durée par défaut en secondes
+                    updateContent(index, defaultDuration);
+        
+                    // Passer au panneau suivant après le délai par défaut
+                    setTimeout(() => {
+                        if (isPlaying && currentIndex < panels.length - 1) {
+                            currentIndex++;
+                            playPanelAudio(currentIndex);
+                        } else {
+                            stopPlayback();
+                        }
+                    }, defaultDuration * 1000); // Convertir en ms
                 };
             } else {
-                // Si pas d'audio, attendre 2 secondes puis passer au suivant
+                // Aucun audio pour ce panneau, utiliser une durée par défaut
+                const defaultDuration = 2.5; // Durée par défaut en secondes
+                updateContent(index, defaultDuration);
+        
                 setTimeout(() => {
                     if (isPlaying && currentIndex < panels.length - 1) {
                         currentIndex++;
-                        updateContent(currentIndex);
                         playPanelAudio(currentIndex);
                     } else {
                         stopPlayback();
                     }
-                }, 2500);
+                }, defaultDuration * 1000); // Convertir en ms
             }
         }
+        
+        
 
         // Écouter les événements pour les boutons de navigation
         if (firstButton) {
@@ -693,6 +780,49 @@ Manga Reader - Read Manga
     input[type="range"]:focus::-moz-range-thumb {
         box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.3);
     }
+
+    
+    #preview-image{
+        filter: contrast(120%) brightness(105%) blur(0.1px);
+        
+    }
+
+    .fade-zoom-animation {
+        animation: fadeIn var(--fade-in-duration, 0.5s) ease-in forwards,
+                   zoom var(--zoom-duration, 9s) linear var(--fade-in-duration, 0.5s) forwards,
+                   fadeOut var(--fade-out-duration, 0.5s) ease-out calc(var(--fade-in-duration, 0.5s) + var(--zoom-duration, 9s)) forwards;
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: scale(0.9);
+        }
+        to {
+            opacity: 1;
+            transform: scale(0.92);
+        }
+    }
+    
+    @keyframes zoom {
+        from {
+            transform: scale(0.92);
+        }
+        to {
+            transform: scale(1);
+        }
+    }
+    
+    @keyframes fadeOut {
+        from {
+            opacity: 1;
+            transform: scale(1);
+        }
+        to {
+            opacity: 0;
+            transform: scale(1.02);
+        }
+    }   
 
 </style>   
 
