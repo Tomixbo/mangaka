@@ -15,6 +15,7 @@ import numpy as np
 import wave
 from moviepy.editor import VideoFileClip
 from moviepy.video.fx.all import resize, crop
+import shutil
 
 
 
@@ -54,6 +55,44 @@ def get_audio_duration(file_path):
 def get_video_path(manga_id):
     return os.path.join(settings.MEDIA_ROOT, "manga_videos", f"{manga_id}", f"{manga_id}.mp4")
 
+def filter_image(image_path, temp_directory, panel_id):
+    """
+    Applies effects (sharpening, smoothing, and brightness adjustment) to the manga image and saves it temporarily.
+
+    Args:
+        image_path (str): Path to the input image.
+        temp_directory (str): Directory to save the temporary processed image.
+        panel_id (int): Unique ID for the panel (used to name the file).
+
+    Returns:
+        str: Path to the processed image file.
+    """
+    # Read the input image
+    image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+    if image is None:
+        raise ValueError(f"Unable to open image file: {image_path}")
+
+    # Apply smoothing (blur)
+    blur_value = 1
+    smoothed_image = cv2.GaussianBlur(image, (2 * blur_value + 1, 2 * blur_value + 1), 0)
+
+    # Apply sharpening
+    sharpening_kernel = np.array([[0, -1, 0],
+                                   [-1, 5, -1],
+                                   [0, -1, 0]])
+    sharpened_image = cv2.filter2D(smoothed_image, -1, sharpening_kernel)
+
+    # Adjust brightness (optional)
+    brightness = 10  # Adjust brightness (positive to brighten, negative to darken)
+    processed_image = cv2.convertScaleAbs(sharpened_image, alpha=1.0, beta=brightness)
+
+    # Save the processed image to the temporary directory
+    temp_image_path = os.path.join(temp_directory, f"processed_panel_{panel_id}.jpg")
+    cv2.imwrite(temp_image_path, processed_image)
+
+    return temp_image_path
+
+
 
 def smooth_speed_curve(t, accel_duration=0.5, total_duration=1.0):
     """
@@ -71,10 +110,7 @@ def smooth_speed_curve(t, accel_duration=0.5, total_duration=1.0):
         return 0.1
 
 def apply_zoom_to_video(input_video_path, output_video_path, start_scale=1.0, end_scale=1.1, fps=30):
-    """
-    Applies a zoom effect with a smooth speed curve to the input video while retaining the audio.
-    Handles cases where the input video has no audio.
-    """
+
     # Determine the root directory of the input video
     root_dir = os.path.dirname(input_video_path)
     temp_audio_path = os.path.join(root_dir, "temp_audio.aac")
@@ -92,7 +128,7 @@ def apply_zoom_to_video(input_video_path, output_video_path, start_scale=1.0, en
         print("No audio found in the input video.")
         audio_present = False
 
-    # Step 2: Apply Zoom (Video Processing)
+    # Step 2: Apply Zoom and Fade (Video Processing)
     cap = cv2.VideoCapture(input_video_path)
     if not cap.isOpened():
         raise ValueError(f"Unable to open video file: {input_video_path}")
@@ -120,6 +156,7 @@ def apply_zoom_to_video(input_video_path, output_video_path, start_scale=1.0, en
 
     # Center of the frame
     center_x, center_y = width // 2, height // 2
+    fade_duration = int(0.5 * fps)  # Number of frames for fade-in/out
 
     for frame_index in range(total_frames):
         ret, frame = cap.read()
@@ -140,6 +177,22 @@ def apply_zoom_to_video(input_video_path, output_video_path, start_scale=1.0, en
             flags=cv2.INTER_LINEAR,
             borderValue=(255, 255, 255),  # White padding
         )
+
+        # Apply fade-in effect
+        if frame_index < fade_duration:
+            alpha = frame_index / fade_duration
+            white_frame = np.ones_like(transformed_frame) * 255
+            transformed_frame = cv2.addWeighted(transformed_frame, alpha, white_frame, 1 - alpha, 0)
+
+        # Apply fade-out effect
+        if frame_index >= total_frames - fade_duration:
+            alpha = (total_frames - frame_index + 1) / fade_duration
+            white_frame = np.ones_like(transformed_frame) * 255
+            transformed_frame = cv2.addWeighted(transformed_frame, alpha, white_frame, 1 - alpha, 0)
+
+            # Forcer à blanc pour la dernière frame
+            if frame_index >= total_frames - 2:
+                transformed_frame = white_frame
 
         # Write the transformed frame
         out.write(transformed_frame)
@@ -169,6 +222,7 @@ def apply_zoom_to_video(input_video_path, output_video_path, start_scale=1.0, en
     except OSError as e:
         print(f"Error removing temporary files: {e}")
 
+
 @csrf_exempt
 @require_POST
 def generate_video_api(request, manga_id):
@@ -186,10 +240,14 @@ def generate_video_api(request, manga_id):
 
         if not panels.exists():
             return JsonResponse({"success": False, "message": "No panels found for the manga."})
-
+        
+        temp_image_directory = os.path.join(video_folder, "temp_images")
+        os.makedirs(temp_image_directory, exist_ok=True)
         # Générer une vidéo pour chaque panel
         for panel in panels:
-            image_path = panel.image.path
+            
+            # Process the image and get the temporary path
+            image_path = filter_image(panel.image.path, temp_image_directory, panel.id)
             temp_video_path = os.path.join(video_folder, f"temp_panel_{panel.id}.mp4")
             temp_videos.append(temp_video_path)
 
@@ -209,8 +267,8 @@ def generate_video_api(request, manga_id):
                     "-i", panel.audio_file.path,
                     "-filter_complex", (
                         f"[1:a]apad=pad_dur={audio_duration+0.5},aresample=async=1:min_hard_comp=0.100:first_pts=0[audio];"
-                        "[0:v]scale='if(gt(a,16/9),854*0.92,-2):if(gt(a,16/9),-2,480*0.92)',"
-                        "pad=854:480:(ow-iw)/2:(oh-ih)/2:white[scaled];"
+                        "[0:v]scale='if(gt(a,16/9),1920*0.92,-2):if(gt(a,16/9),-2,1080*0.92)',"
+                        "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:white[scaled];"
                         "[scaled][audio]concat=n=1:v=1:a=1[outv][outa]"
                     ),
                     "-map", "[outv]",
@@ -228,8 +286,8 @@ def generate_video_api(request, manga_id):
                     "-i", image_path,
                     "-f", "lavfi", "-t", "2.5", "-i", "anullsrc=r=22050:cl=mono",
                     "-vf", (
-                        "scale='if(gt(a,16/9),854*0.92,-2):if(gt(a,16/9),-2,480*0.92)',"
-                        "pad=854:480:(ow-iw)/2:(oh-ih)/2:white"
+                        "scale='if(gt(a,16/9),1920*0.92,-2):if(gt(a,16/9),-2,1080*0.92)',"
+                        "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:white"
                     ),
                     "-pix_fmt", "yuv420p",
                     "-c:v", "libx264",
@@ -247,7 +305,8 @@ def generate_video_api(request, manga_id):
             # Replace temp_video_path with zoomed_video_path for concatenation
             temp_videos[-1] = zoomed_video_path
             os.remove(temp_video_path)  # Clean up intermediate video
-
+        
+        shutil.rmtree(temp_image_directory)
         # Créer un fichier de concaténation
         concat_file_path = os.path.join(video_folder, "concat_list.txt")
         with open(concat_file_path, "w") as concat_file:
