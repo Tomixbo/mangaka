@@ -542,7 +542,7 @@ Manga Reader - Read Manga
         // Soumettre les corrections
         submitCorrectionsButton.addEventListener("click", () => {
             const correctedTexts = Array.from(textEdit.querySelectorAll("textarea")).map((textarea) =>
-                textarea.value.trim()
+                textarea.value.length > 1 ? textarea.value.trim() : textarea.value
             );
 
             const metadata = panelsMetadata[currentIndex]; // Récupérer les métadonnées du panneau actuel
