@@ -175,6 +175,20 @@ def sort_texts_in_panel(texts, horizontal_threshold=50):
 
     return sorted_texts
 
+def prioritize_punctuation(text):
+    def replace_match(match):
+        # Extraire les caractères uniques de ponctuation dans l'ordre d'apparition
+        punctuations = set(match.group(0))
+        # Définir la priorité des ponctuations
+        priority = ['?', '!', ',', '.']
+        # Trouver la première ponctuation correspondant à la priorité
+        for p in priority:
+            if p in punctuations:
+                return p
+        return '.'  # Par défaut, retourner un point si aucune priorité n'est trouvée
+
+    # Remplacer selon la logique de priorité
+    return re.sub(r'[.,!?]+', replace_match, text)
 
 def format_text_to_sentence_case(text):
     """
@@ -182,10 +196,10 @@ def format_text_to_sentence_case(text):
     """
     text = re.sub(r'!{2,}', '!', text)
     text = re.sub(r'\?{2,}', '?', text)
-    text = re.sub(r'(\?!|!\?)', '!', text)
-    text = re.sub(r'[.,!?]+', lambda m: m.group(0)[0], text)
+    text = prioritize_punctuation(text)
     text = re.sub(r'\s+', ' ', text).strip()
 
+    # Maj and Min
     sentences = nltk.sent_tokenize(text, language='french')
     formatted_sentences = []
     for sentence in sentences:
@@ -194,3 +208,14 @@ def format_text_to_sentence_case(text):
             formatted_sentence = sentence[0].upper() + sentence[1:].lower()
             formatted_sentences.append(formatted_sentence)
     return ' '.join(formatted_sentences)
+
+def format_text_after_AI(text):
+    """
+    Format text to sentence case.
+    """
+    text = re.sub(r'!{2,}', '!', text)
+    text = re.sub(r'\?{2,}', '?', text)
+    text = prioritize_punctuation(text)
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    return text
