@@ -22,6 +22,11 @@ import io
 import json
 import base64
 import threading
+from groq import Groq
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement depuis le fichier .env
+load_dotenv()
 
 def manga_list(request):
     """
@@ -310,4 +315,95 @@ def update_text(request):
         except Exception as e:
             return JsonResponse({"success": False, "message": str(e)})
 
+    return JsonResponse({"success": False, "message": "Invalid request method"})
+
+# Function to encode the image
+def encode_image(image_path):
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
+
+def validate_api_response(response_data):
+    try:
+        # Ensure the response is a dictionary with only keys like "text1", "text2", etc.
+        if not isinstance(response_data, dict):
+            return False
+        for key, value in response_data.items():
+            if not key.startswith("text") or not isinstance(value, str):
+                return False
+        return True
+    except Exception as e:
+        print(f"Validation error: {e}")
+        return False
+
+def ai_correction(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            panel_id = data["panel_id"]
+            manga_id = data["manga_id"]
+            manga_page_id = data["manga_page_id"]
+
+            # Fetch the panel and its text from the database
+            # Rechercher le panneau correspondant
+            panel = Panel.objects.filter(
+                id=panel_id,
+                manga_page__id=manga_page_id,
+                manga_page__manga__id=manga_id
+            ).first()
+            panel_text = panel.recognized_text or ""  # Get the text or empty string if none
+            panel_image_path = panel.image.path
+
+            # Encode the image to base64
+            base64_image = encode_image(panel_image_path)
+
+            # Initialize the Groq client
+            client = Groq(
+                api_key=os.environ.get("GROQ_API_KEY"),
+            )
+            retry_count = 3  # Set a retry limit
+            response_content = None
+
+            for attempt in range(retry_count):
+                # Call the multimodal API
+                completion = client.chat.completions.create(
+                    model="llama-3.2-90b-vision-preview",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": f"This is the recognized text in the image:\n {panel_text}\nYour task is to correct text recognition from Japanese manga images.\nText is read right to left, starting from the top-right. Read all text on the right column from top to bottom before moving progressively to the left. Treat linked bubbles as one.\nFix errors, including French spelling and grammar mistakes, count but do not paraphrase or alter the original meaning of the recognized text. Reorder text if mixed up and remove duplicates.\nPreserve French text, character names, manga-specific terms, and Japanese words.\nRespond **only** in JSON format, respect strictly the format as follows:\n```json\n{{\n  \"text1\": \"Corrected sentence 1\",\n  \"text2\": \"Corrected sentence 2\",\n  ...\n}}\n",
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                                },
+                            ],
+                        }
+                    ],
+                    temperature=0,
+                    max_completion_tokens=1024,
+                    top_p=1,
+                    stream=False,
+                    response_format={"type": "json_object"},
+                    stop=None,
+                )
+
+                # Extract the response content
+                response_content = completion.choices[0].message.content
+                corrected_texts = json.loads(response_content)
+
+                # Validate the response
+                if validate_api_response(corrected_texts):
+                    break  # Exit the loop if the response is valid
+                else:
+                    print(f"Attempt {attempt + 1}: Invalid response format. Retrying...", response_content)
+
+            if not validate_api_response(corrected_texts):
+                return JsonResponse({"success": False, "message": "Failed to get a valid response from the API after retries."})
+
+            return JsonResponse({"success": True, "corrected_texts": corrected_texts})
+        except Exception as e:
+            return JsonResponse({"success": False, "message": str(e)})
     return JsonResponse({"success": False, "message": "Invalid request method"})

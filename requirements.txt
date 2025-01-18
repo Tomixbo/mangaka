@@ -3,3 +3,4 @@ django-tailwind
 django-widget-tweaks
 opencv-python
 nltk
+groq
