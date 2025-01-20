@@ -25,12 +25,11 @@ import base64
 import threading
 from groq import Groq
 from dotenv import load_dotenv
+from aiohttp import ClientTimeout
 
 # Charger les variables d'environnement depuis le fichier .env
 load_dotenv()
-client = Groq(
-                    api_key=os.environ.get("GROQ_API_KEY"),
-                )
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"),)
 
 def manga_list(request):
     """
@@ -71,18 +70,26 @@ def add_manga(request):
 
 async def process_manga_images(manga_id):
     """
-    Background processing for manga images.
+    Background processing for manga images with limited concurrency.
     """
     manga = await sync_to_async(Manga.objects.get)(id=manga_id)
     manga_pages = await sync_to_async(list)(MangaPage.objects.filter(manga=manga))
 
-    async with ClientSession() as session:
-        tasks = [process_image(session, manga_id, manga_page) for manga_page in manga_pages]
+    semaphore = asyncio.Semaphore(1)  # Limit to 1 simultaneous tasks
+    timeout = ClientTimeout(total=120)
+
+    async with ClientSession(timeout=timeout) as session:
+        async def limited_process_image(session, manga_id, manga_page):
+            async with semaphore:
+                await process_image(session, manga_id, manga_page)
+
+        tasks = [limited_process_image(session, manga_id, manga_page) for manga_page in manga_pages]
         await asyncio.gather(*tasks)
 
     # Update manga status to READY after processing
     manga.status = 'ready'
     await sync_to_async(manga.save)()
+
 
 async def generate_audio(session, recognized_text, manga_id, manga_page_id, panel_id):
     """
@@ -129,6 +136,10 @@ async def process_image(session, manga_id, manga_page):
     """
     Process a single manga page: detect panels, recognize text, and generate audio.
     """
+    # Global semaphore to enforce API rate limit
+    rate_limit = 15 # 15 requests/min
+    rate_limit_semaphore = asyncio.Semaphore(rate_limit)  # Limit to 15 requests per minute
+    RATE_LIMIT_INTERVAL = 60 / rate_limit  # Interval in seconds between each request (4 seconds)
     # Étape 1: Vérification du chemin de l'image
     image_path = manga_page.original_image.path
     manga_page_id = manga_page.id  # Précharger l'identifiant
@@ -199,68 +210,71 @@ async def process_image(session, manga_id, manga_page):
         recognized_text = "\n".join(processed_texts)
         print(f"Recognized text for panel {panel_id}: {recognized_text}")
 
-        if recognized_text:
-            # Correct text with Groq
-            try:
-                # Encode the image to base64
-                base64_image = encode_image(full_panel_image_path)
-                
-                retry_count = 3  # Set a retry limit
-                response_content = None
+        # Correct text with Groq
+        if recognized_text:  
+            async with rate_limit_semaphore:
+                try:
+                    # Wait before making the request to comply with the rate limit
+                    await asyncio.sleep(RATE_LIMIT_INTERVAL)
+                    # Encode the image to base64
+                    base64_image = encode_image(full_panel_image_path)
+                    
+                    retry_count = 3  # Set a retry limit
+                    response_content = None
 
-                for attempt in range(retry_count):
-                    try:
-                        # Call the multimodal API
-                        completion = client.chat.completions.create(
-                            model="llama-3.2-90b-vision-preview",
-                            messages=[
-                                {
-                                    "role": "user",
-                                    "content": [
-                                        {
-                                            "type": "text",
-                                            "text": f"This is the recognized text in the image:\n {recognized_text}\nYour task is to correct text recognition from Japanese manga images.\nText is read right to left, starting from the top-right. Read all text on the right column from top to bottom before moving progressively to the left. Treat linked bubbles as one.\nFix errors, including French spelling and grammar mistakes, count but do not paraphrase or alter the original meaning of the recognized text. Reorder text if mixed up and remove duplicates.\nPreserve French text, character names, manga-specific terms, and Japanese words.\nRespond **only** in JSON format, respect strictly the format as follows:\n```json\n{{\n  \"text1\": \"Corrected sentence 1\",\n  \"text2\": \"Corrected sentence 2\",\n  ...\n}}\n",
-                                        },
-                                        {
-                                            "type": "image_url",
-                                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
-                                        },
-                                    ],
-                                }
-                            ],
-                            temperature=0,
-                            max_completion_tokens=1024,
-                            top_p=1,
-                            stream=False,
-                            response_format={"type": "json_object"},
-                            stop=None,
-                        )
-
-                        # Extract the response content
-                        response_content = completion.choices[0].message.content
+                    for attempt in range(retry_count):
                         try:
-                            corrected_texts = json.loads(response_content)
-                        except json.JSONDecodeError as json_error:
-                            print(f"JSON parsing error: {json_error}")
-                            corrected_texts = None
+                            # Call the multimodal API
+                            completion = client.chat.completions.create(
+                                model="llama-3.2-90b-vision-preview",
+                                messages=[
+                                    {
+                                        "role": "user",
+                                        "content": [
+                                            {
+                                                "type": "text",
+                                                "text": f"This is the recognized text in the image:\n {recognized_text}\nYour task is to correct text recognition from Japanese manga images.\nText is read right to left, starting from the top-right. Read all text on the right column from top to bottom before moving progressively to the left. Treat linked bubbles as one.\nFix errors, including French spelling and grammar mistakes, count but do not paraphrase or alter the original meaning of the recognized text. Reorder text if mixed up and remove duplicates.\nPreserve French text, character names, manga-specific terms, and Japanese words.\nRespond **only** in JSON format, respect strictly the format as follows:\n```json\n{{\n  \"text1\": \"Corrected sentence 1\",\n  \"text2\": \"Corrected sentence 2\",\n  ...\n}}\n",
+                                            },
+                                            {
+                                                "type": "image_url",
+                                                "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                                            },
+                                        ],
+                                    }
+                                ],
+                                temperature=0,
+                                max_completion_tokens=1024,
+                                top_p=1,
+                                stream=False,
+                                response_format={"type": "json_object"},
+                                stop=None,
+                            )
 
-                        # Validate the response
-                        if validate_api_response(corrected_texts):
-                            break  # Exit the loop if the response is valid
-                        else:
-                            print(f"Attempt {attempt + 1}: Invalid response format. Retrying...", response_content)
+                            # Extract the response content
+                            response_content = completion.choices[0].message.content
+                            try:
+                                corrected_texts = json.loads(response_content)
+                            except json.JSONDecodeError as json_error:
+                                print(f"JSON parsing error: {json_error}")
+                                corrected_texts = None
 
-                    except Exception as api_error:
-                        print(f"Attempt {attempt + 1} failed due to API error: {api_error}")
+                            # Validate the response
+                            if validate_api_response(corrected_texts):
+                                break  # Exit the loop if the response is valid
+                            else:
+                                print(f"Attempt {attempt + 1}: Invalid response format. Retrying...", response_content)
 
-                    await asyncio.sleep(2 ** attempt)  # Exponential backoff between retries
+                        except Exception as api_error:
+                            print(f"Attempt {attempt + 1} failed due to API error: {api_error}")
 
-                if not validate_api_response(corrected_texts):
-                    print("Error : Failed to get a valid response from the API Groq after retries.")
-                else:
-                    recognized_text = "\n".join(format_text_after_AI(i) for i in corrected_texts.values())
-            except Exception as e:
-                print("error", str(e))
+                        await asyncio.sleep(2 ** attempt)  # Exponential backoff between retries
+
+                    if not validate_api_response(corrected_texts):
+                        print("Error : Failed to get a valid response from the API Groq after retries.")
+                    else:
+                        recognized_text = "\n".join(format_text_after_AI(i) for i in corrected_texts.values())
+                except Exception as e:
+                    print("error", str(e))
         
         # Étape 6: Génération de l'audio
         audio_file_path = await generate_audio(session, recognized_text, manga_id, manga_page_id, panel_id)
